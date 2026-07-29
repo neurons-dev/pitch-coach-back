@@ -3,15 +3,17 @@ from __future__ import annotations
 import logging
 import threading
 
-from app.core.config import get_settings
 from app.domain.repositories import JobRepository
 
 logger = logging.getLogger(__name__)
 
 
 class Watchdog:
-    def __init__(self, *, job_repository: JobRepository) -> None:
+    def __init__(
+        self, *, job_repository: JobRepository, watchdog_check_interval_seconds: float
+    ) -> None:
         self._jobs = job_repository
+        self._watchdog_check_interval_seconds = watchdog_check_interval_seconds
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -29,7 +31,6 @@ class Watchdog:
             self._thread.join(timeout=5)
 
     def _run_loop(self) -> None:
-        settings = get_settings()
         while not self._stop_event.is_set():
             try:
                 requeued = self._jobs.requeue_expired_leases()
@@ -37,4 +38,4 @@ class Watchdog:
                     logger.warning("watchdog requeued %s stuck job(s)", requeued)
             except Exception:
                 logger.exception("watchdog loop error")
-            self._stop_event.wait(settings.watchdog_check_interval_seconds)
+            self._stop_event.wait(self._watchdog_check_interval_seconds)

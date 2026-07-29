@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     worker_poll_interval_seconds: float = 2.0
     watchdog_check_interval_seconds: float = 30.0
     lease_duration_seconds: int = 300
+    lease_heartbeat_interval_seconds: float = 60.0
 
 
 @lru_cache

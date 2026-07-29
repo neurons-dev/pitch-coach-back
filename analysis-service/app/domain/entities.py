@@ -21,6 +21,14 @@ class AnalysisJobLike(Protocol):
     created_at: datetime
 
 
+@dataclass(frozen=True)
+class ClaimedJob:
+    id: uuid.UUID
+    audio_object_key: str
+    analysis_version: str
+    lease_token: uuid.UUID
+
+
 class JobCreationDisposition(str, Enum):
     CREATED = "created"
     IDEMPOTENT_REPLAY = "idempotent_replay"
