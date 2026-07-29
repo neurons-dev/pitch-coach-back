@@ -18,6 +18,7 @@ class _FakeJobRepository:
 
 
 def test_heartbeat_keeps_lease_alive_while_renewals_succeed():
+    # given
     fake = _FakeJobRepository(lambda _call: True)
     heartbeat = LeaseHeartbeat(
         job_repository=fake,
@@ -27,14 +28,17 @@ def test_heartbeat_keeps_lease_alive_while_renewals_succeed():
         interval_seconds=0.05,
     )
 
+    # when
     with heartbeat:
         time.sleep(0.2)
 
+    # then
     assert heartbeat.lease_lost is False
     assert fake.calls >= 2
 
 
 def test_heartbeat_detects_lost_lease_when_renew_returns_false():
+    # given
     fake = _FakeJobRepository(lambda _call: False)
     heartbeat = LeaseHeartbeat(
         job_repository=fake,
@@ -44,13 +48,16 @@ def test_heartbeat_detects_lost_lease_when_renew_returns_false():
         interval_seconds=0.05,
     )
 
+    # when
     with heartbeat:
         time.sleep(0.2)
 
+    # then
     assert heartbeat.lease_lost is True
 
 
 def test_heartbeat_tolerates_a_transient_db_error_within_the_lease_window():
+    # given
     def flaky(call: int) -> bool:
         if call == 1:
             raise RuntimeError("transient db error")
@@ -65,13 +72,16 @@ def test_heartbeat_tolerates_a_transient_db_error_within_the_lease_window():
         interval_seconds=0.05,
     )
 
+    # when
     with heartbeat:
         time.sleep(0.2)
 
+    # then
     assert heartbeat.lease_lost is False
 
 
 def test_heartbeat_gives_up_once_errors_persist_past_the_lease_duration():
+    # given
     def always_fail(_call: int) -> bool:
         raise RuntimeError("db down")
 
@@ -84,7 +94,9 @@ def test_heartbeat_gives_up_once_errors_persist_past_the_lease_duration():
         interval_seconds=0.1,
     )
 
+    # when
     with heartbeat:
         time.sleep(1.5)
 
+    # then
     assert heartbeat.lease_lost is True

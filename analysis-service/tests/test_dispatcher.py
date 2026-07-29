@@ -40,6 +40,7 @@ def _claim() -> ClaimedJob:
 
 
 def test_dispatcher_completes_job_when_lease_is_held_throughout():
+    # given
     claim = _claim()
     fake = _FakeJobRepository(claim=claim)
     dispatcher = Dispatcher(
@@ -50,18 +51,20 @@ def test_dispatcher_completes_job_when_lease_is_held_throughout():
         analysis_runner=lambda **_: None,
     )
 
+    # when
     processed = dispatcher._process_next(
         lease_duration_seconds=300, heartbeat_interval_seconds=60
     )
 
+    # then
     assert processed is True
     assert fake.complete_calls == [(claim.id, claim.lease_token)]
     assert fake.fail_calls == []
 
 
 def test_dispatcher_discards_result_when_lease_is_lost_during_analysis():
+    # given
     claim = _claim()
-    # renew_lease always reports failure, simulating the lease already being reassigned.
     fake = _FakeJobRepository(claim=claim, renew_result=False)
 
     def slow_analysis(**_):
@@ -75,11 +78,11 @@ def test_dispatcher_discards_result_when_lease_is_lost_during_analysis():
         analysis_runner=slow_analysis,
     )
 
+    # when
     processed = dispatcher._process_next(
         lease_duration_seconds=300, heartbeat_interval_seconds=0.05
     )
 
+    # then
     assert processed is True
-    # lease_lost was detected before the result could be saved, so complete_job
-    # must never be called with a result that no longer belongs to this worker.
     assert fake.complete_calls == []
