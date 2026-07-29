@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/pitchcoach_analysis"
     log_level: str = "INFO"
 
+    worker_poll_interval_seconds: float = 2.0
+    watchdog_check_interval_seconds: float = 30.0
+    lease_duration_seconds: int = 300
+
 
 @lru_cache
 def get_settings() -> Settings:
