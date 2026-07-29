@@ -4,8 +4,8 @@ on:
   push:
     branches: [main]
     paths:
-      - 'core-service/**'
-      - '.github/workflows/deploy-core-service.yml'
+      - "core-service/**"
+      - ".github/workflows/deploy-core-service.yml"
   workflow_dispatch: {}
 
 permissions:
@@ -22,6 +22,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Debug secret presence
+        run: |
+          if [ -z "$SECRET_VALUE" ]; then
+            echo "❌ AWS_DEPLOY_ROLE_ARN is EMPTY"
+          else
+            echo "✅ AWS_DEPLOY_ROLE_ARN is SET"
+          fi
+        env:
+          SECRET_VALUE: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
