@@ -18,7 +18,7 @@ public class OpenApiConfig {
         return new OpenAPI()
                 .info(new Info()
                         .title("Pitch Coach Core Service API")
-                        .description("회원가입 / 로그인 / 소셜 로그인 / 로그아웃 등 인증·인가 API")
+                        .description("Pitch Coach Core Service API")
                         .version("v1"))
                 .addSecurityItem(new SecurityRequirement().addList(BEARER_SCHEME))
                 .components(new Components().addSecuritySchemes(BEARER_SCHEME,
