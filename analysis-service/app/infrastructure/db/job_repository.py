@@ -5,22 +5,16 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import sessionmaker
 
 from app.domain.entities import JobCreation, JobCreationDisposition
 from app.domain.errors import IdempotencyKeyConflictError
 from app.infrastructure.db.models import AnalysisJob
-from app.infrastructure.db.session import SessionLocal
+from app.infrastructure.db.session import read_session_scope, transaction_scope
 
 _ACTIVE_STATUSES = ("queued", "processing")
 
 
 class SqlAlchemyJobRepository:
-    """JobRepository의 SQLAlchemy 구현체. 트랜잭션 경계를 스스로 관리한다."""
-
-    def __init__(self, session_factory: sessionmaker = SessionLocal) -> None:
-        self._session_factory = session_factory
-
     def create_job(
         self,
         *,
@@ -43,7 +37,7 @@ class SqlAlchemyJobRepository:
             "analysis_version": "v1",
             "status": "queued",
         }
-        with self._session_factory.begin() as session:
+        with transaction_scope() as session:
             statement = (
                 insert(AnalysisJob)
                 .values(**values)
@@ -91,14 +85,14 @@ class SqlAlchemyJobRepository:
             )
 
     def get_job(self, job_id: uuid.UUID) -> AnalysisJob | None:
-        with self._session_factory() as session:
+        with read_session_scope() as session:
             job = session.get(AnalysisJob, job_id)
             if job is not None:
                 session.expunge(job)
             return job
 
     def claim_next_job(self, *, lease_duration_seconds: int) -> AnalysisJob | None:
-        with self._session_factory.begin() as session:
+        with transaction_scope() as session:
             job = session.scalars(
                 select(AnalysisJob)
                 .where(AnalysisJob.status == "queued")
@@ -124,7 +118,7 @@ class SqlAlchemyJobRepository:
             return job
 
     def complete_job(self, job_id: uuid.UUID) -> bool:
-        with self._session_factory.begin() as session:
+        with transaction_scope() as session:
             job = session.get(AnalysisJob, job_id)
             if job is None:
                 return False
@@ -140,7 +134,7 @@ class SqlAlchemyJobRepository:
     def fail_job(
         self, job_id: uuid.UUID, *, code: str, message: str, retryable: bool
     ) -> bool:
-        with self._session_factory.begin() as session:
+        with transaction_scope() as session:
             job = session.get(AnalysisJob, job_id)
             if job is None:
                 return False
@@ -162,7 +156,7 @@ class SqlAlchemyJobRepository:
             return True
 
     def requeue_expired_leases(self, *, batch_size: int = 100) -> int:
-        with self._session_factory.begin() as session:
+        with transaction_scope() as session:
             now = datetime.now(timezone.utc)
             stuck_jobs = session.scalars(
                 select(AnalysisJob)
