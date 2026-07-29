@@ -3,8 +3,8 @@ spring:
     name: core-service
 
   datasource:
-    url: jdbc:postgresql://neurons.cvm4uk8i2nol.ap-northeast-2.rds.amazonaws.com:5432/pitchcoach_core
-    username: postgres
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
@@ -58,3 +58,7 @@ jwt:
   secret: ${JWT_SECRET}
   access-token-expire-ms: 1800000    # 30분
   refresh-token-expire-ms: 1209600000 # 14일
+
+app:
+  frontend:
+    oauth-redirect-base: ${FRONTEND_OAUTH_REDIRECT_BASE:http://localhost:3000/oauth/callback}
