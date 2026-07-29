@@ -4,30 +4,50 @@ import logging
 import secrets
 import uuid
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Response
+from fastapi import APIRouter, Depends, Header, Response
 
 from app.core.config import get_settings
 from app.domain.entities import AnalysisJobLike
 from app.domain.errors import IdempotencyKeyConflictError
 from app.domain.repositories import JobRepository
 from app.interface.dependencies import get_job_repository
+from app.interface.exceptions import ApiException
+from app.interface.schemas.errors import ErrorResponse
 from app.interface.schemas.jobs import (
     AnalysisJobCreateRequest,
     AnalysisJobCreateResponse,
     AnalysisJobStatusResponse,
 )
 
-router = APIRouter(prefix="/internal/v1/analysis-jobs", tags=["analysis-jobs"])
+router = APIRouter(
+    prefix="/internal/v1/analysis-jobs",
+    tags=["analysis-jobs"],
+    responses={
+        401: {"model": ErrorResponse, "description": "Invalid internal token"},
+        422: {"model": ErrorResponse, "description": "Request validation failed"},
+        500: {"model": ErrorResponse, "description": "Internal server error"},
+    },
+)
 logger = logging.getLogger(__name__)
 
 
 def _check_token(x_internal_token: str) -> None:
     settings = get_settings()
     if not secrets.compare_digest(x_internal_token, settings.internal_token):
-        raise HTTPException(status_code=401, detail="invalid internal token")
+        raise ApiException(
+            status_code=401,
+            code="INVALID_INTERNAL_TOKEN",
+            message="Invalid internal token.",
+        )
 
 
-@router.post("", status_code=202)
+@router.post(
+    "",
+    status_code=202,
+    responses={
+        409: {"model": ErrorResponse, "description": "Idempotency key conflict"},
+    },
+)
 def create_analysis_job(
     body: AnalysisJobCreateRequest,
     response: Response,
@@ -48,7 +68,11 @@ def create_analysis_job(
             duration_ms=body.duration_ms,
         )
     except IdempotencyKeyConflictError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise ApiException(
+            status_code=409,
+            code="IDEMPOTENCY_KEY_CONFLICT",
+            message="The idempotency key was already used with a different request.",
+        ) from exc
 
     job_id, status = creation.job.id, creation.job.status
 
@@ -64,7 +88,12 @@ def create_analysis_job(
     return AnalysisJobCreateResponse(analysis_job_id=job_id, status=status)
 
 
-@router.get("/{job_id}")
+@router.get(
+    "/{job_id}",
+    responses={
+        404: {"model": ErrorResponse, "description": "Analysis job not found"},
+    },
+)
 def get_analysis_job(
     job_id: uuid.UUID,
     x_internal_token: str = Header(...),
@@ -74,7 +103,11 @@ def get_analysis_job(
 
     job = job_repository.get_job(job_id)
     if job is None:
-        raise HTTPException(status_code=404, detail="analysis job not found")
+        raise ApiException(
+            status_code=404,
+            code="ANALYSIS_JOB_NOT_FOUND",
+            message="Analysis job not found.",
+        )
     return _to_status_response(job)
 
 
