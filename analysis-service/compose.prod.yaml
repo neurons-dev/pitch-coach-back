@@ -1,0 +1,16 @@
+services:
+  analysis-api:
+    image: ${ECR_REGISTRY}/pitch-coach/analysis-service:latest
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "127.0.0.1:8000:8000"
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  analysis-worker:
+    image: ${ECR_REGISTRY}/pitch-coach/analysis-service:latest
+    command: ["python", "-m", "app.worker_main"]
+    env_file:
+      - .env
+    restart: unless-stopped
