@@ -24,9 +24,18 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _handle_signal)
     signal.signal(signal.SIGINT, _handle_signal)
 
+    settings = get_settings()
     job_repository = SqlAlchemyJobRepository()
-    dispatcher = Dispatcher(job_repository=job_repository)
-    watchdog = Watchdog(job_repository=job_repository)
+    dispatcher = Dispatcher(
+        job_repository=job_repository,
+        lease_duration_seconds=settings.lease_duration_seconds,
+        worker_poll_interval_seconds=settings.worker_poll_interval_seconds,
+        lease_heartbeat_interval_seconds=settings.lease_heartbeat_interval_seconds,
+    )
+    watchdog = Watchdog(
+        job_repository=job_repository,
+        watchdog_check_interval_seconds=settings.watchdog_check_interval_seconds,
+    )
 
     dispatcher.start()
     watchdog.start()

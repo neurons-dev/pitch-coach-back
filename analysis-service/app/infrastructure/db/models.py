@@ -85,6 +85,7 @@ class AnalysisJob(Base):
     error_code: Mapped[str | None] = mapped_column(String)
     error_message: Mapped[str | None] = mapped_column(Text)
 
+    lease_token: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     lease_expires_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
 
     started_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
