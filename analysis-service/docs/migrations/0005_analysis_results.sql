@@ -1,9 +1,5 @@
 \set ON_ERROR_STOP on
 
--- Creates analysis_results / analysis_metric_scores / feedback_items if they don't
--- already exist, then adds the version-tracking columns needed for #15 regardless of
--- whether the tables were just created here or already existed beforehand.
-
 BEGIN;
 
 CREATE TABLE IF NOT EXISTS analysis_results (
@@ -65,10 +61,6 @@ CREATE INDEX IF NOT EXISTS idx_metric_scores_code_result
 CREATE INDEX IF NOT EXISTS idx_feedback_result_order
     ON feedback_items (analysis_result_id, sort_order);
 
--- Version columns (#15): record the pipeline/STT/scoring versions that actually
--- produced the result, independent of analysis_jobs.analysis_version (the version
--- requested at job-creation time). Safe as NOT NULL with no default because both a
--- freshly-created table and the pre-existing empty table have zero rows.
 ALTER TABLE analysis_results
     ADD COLUMN IF NOT EXISTS pipeline_version VARCHAR NOT NULL;
 ALTER TABLE analysis_results

@@ -43,16 +43,13 @@ def _result(**overrides) -> AnalysisResultInput:
 def test_save_result_and_complete_persists_result_and_completes_job(
     job_repository, make_job, database_session_provider
 ):
-    # given
     make_job()
     claim = job_repository.claim_next_job(lease_duration_seconds=300)
 
-    # when
     saved = job_repository.save_result_and_complete(
         claim.id, lease_token=claim.lease_token, result=_result()
     )
 
-    # then
     assert saved is True
     job = job_repository.get_job(claim.id)
     assert job.status == "completed"
@@ -73,16 +70,13 @@ def test_save_result_and_complete_persists_result_and_completes_job(
 def test_save_result_and_complete_rejects_mismatched_lease_token(
     job_repository, make_job, database_session_provider
 ):
-    # given
     job_id = make_job()
     job_repository.claim_next_job(lease_duration_seconds=300)
 
-    # when
     saved = job_repository.save_result_and_complete(
         job_id, lease_token=uuid.uuid4(), result=_result()
     )
 
-    # then
     assert saved is False
     assert job_repository.get_job(job_id).status == "processing"
     with database_session_provider.read_session_scope() as session:
@@ -95,23 +89,20 @@ def test_save_result_and_complete_rejects_mismatched_lease_token(
 def test_save_result_and_complete_rolls_back_job_on_constraint_violation(
     job_repository, make_job, database_session_provider
 ):
-    # given
     job_id = make_job()
     claim = job_repository.claim_next_job(lease_duration_seconds=300)
     invalid_result = _result(
         metric_scores=[
             MetricScoreInput(metric_code="SPEED", score=80),
-            MetricScoreInput(metric_code="SPEED", score=90),  # duplicate -> UNIQUE violation
+            MetricScoreInput(metric_code="SPEED", score=90),
         ]
     )
 
-    # when / then
     with pytest.raises(IntegrityError):
         job_repository.save_result_and_complete(
             claim.id, lease_token=claim.lease_token, result=invalid_result
         )
 
-    # the whole transaction (result insert + job completion) must have rolled back
     assert job_repository.get_job(job_id).status == "processing"
     with database_session_provider.read_session_scope() as session:
         rows = session.scalars(

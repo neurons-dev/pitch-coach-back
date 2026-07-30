@@ -147,8 +147,6 @@ class AnalysisResult(Base):
     total_speech_ms: Mapped[int | None] = mapped_column(BigInteger)
     total_silence_ms: Mapped[int | None] = mapped_column(BigInteger)
 
-    # 결과를 만들어낸 실제 실행 시점의 버전 (요청 시점의 analysis_jobs.analysis_version과는
-    # 별개로, 재현/디버깅을 위해 실제 계산에 쓰인 버전을 기록한다).
     pipeline_version: Mapped[str] = mapped_column(String, nullable=False)
     stt_model_version: Mapped[str] = mapped_column(String, nullable=False)
     scoring_rule_version: Mapped[str] = mapped_column(String, nullable=False)

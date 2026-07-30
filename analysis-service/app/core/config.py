@@ -53,6 +53,17 @@ class Settings(BaseSettings):
     watchdog_max_batches_per_cycle: int = Field(default=10, ge=1)
     watchdog_max_run_seconds: float = Field(default=10.0, gt=0)
 
+    aws_region: str = "ap-northeast-2"
+    s3_bucket: str = "pitch-coach-bucket"
+    audio_download_timeout_seconds: float = Field(default=30.0, gt=0)
+    audio_max_size_bytes: int = Field(default=100_000_000, gt=0)
+    audio_max_duration_ms: int = Field(default=600_000, gt=0)
+
+    whisper_model_size: str = "small"
+    whisper_device: str = "cpu"
+    whisper_compute_type: str = "int8"
+    stt_timeout_seconds: float = Field(default=120.0, gt=0)
+
     def db_pool_size(self, role: Literal["api", "worker"]) -> int:
         if role == "api":
             return self.api_db_pool_size
