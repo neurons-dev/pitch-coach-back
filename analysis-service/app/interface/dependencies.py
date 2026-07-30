@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from typing import cast
+
+from fastapi import Request
+
 from app.domain.repositories import JobRepository
-from app.infrastructure.db.job_repository import SqlAlchemyJobRepository
-
-_job_repository = SqlAlchemyJobRepository()
 
 
-def get_job_repository() -> JobRepository:
-    return _job_repository
+def get_job_repository(request: Request) -> JobRepository:
+    return cast(JobRepository, request.app.state.job_repository)

@@ -5,8 +5,8 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import update
 
+from app.application.workers.watchdog import Watchdog
 from app.infrastructure.db.models import AnalysisJob
-from app.infrastructure.db.session import transaction_scope
 
 
 def test_claim_assigns_lease_token(job_repository, make_job):
@@ -91,12 +91,16 @@ def test_renew_lease_succeeds_with_matching_lease_token(job_repository, make_job
     assert renewed is True
 
 
-def test_stale_worker_cannot_complete_after_watchdog_reassigns_job(job_repository, make_job):
+def test_stale_worker_cannot_complete_after_watchdog_reassigns_job(
+    job_repository,
+    make_job,
+    database_session_provider,
+):
     # given
     job_id = make_job()
     claim_a = job_repository.claim_next_job(lease_duration_seconds=300)
 
-    with transaction_scope() as session:
+    with database_session_provider.transaction_scope() as session:
         session.execute(
             update(AnalysisJob)
             .where(AnalysisJob.id == job_id)
@@ -116,3 +120,39 @@ def test_stale_worker_cannot_complete_after_watchdog_reassigns_job(job_repositor
     assert stale_accepted is False
     assert real_accepted is True
     assert job_repository.get_job(job_id).status == "completed"
+
+
+def test_watchdog_requeues_expired_jobs_across_multiple_database_batches(
+    job_repository,
+    make_job,
+    database_session_provider,
+):
+    # given
+    job_ids = [make_job() for _ in range(3)]
+    for _ in job_ids:
+        job_repository.claim_next_job(lease_duration_seconds=300)
+
+    with database_session_provider.transaction_scope() as session:
+        session.execute(
+            update(AnalysisJob)
+            .where(AnalysisJob.id.in_(job_ids))
+            .values(lease_expires_at=datetime.now(timezone.utc) - timedelta(seconds=1))
+        )
+
+    watchdog = Watchdog(
+        job_repository=job_repository,
+        watchdog_check_interval_seconds=30,
+        batch_size=2,
+        max_batches_per_cycle=5,
+        max_run_seconds=10,
+        connection_acquire_timeout_seconds=5,
+    )
+
+    # when
+    result = watchdog.run_cycle()
+
+    # then
+    assert result.requeued_jobs == 3
+    assert result.processed_batches == 2
+    assert result.stop_reason == "queue_drained"
+    assert all(job_repository.get_job(job_id).status == "queued" for job_id in job_ids)

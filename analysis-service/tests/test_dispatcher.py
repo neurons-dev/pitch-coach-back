@@ -43,12 +43,14 @@ def test_dispatcher_completes_job_when_lease_is_held_throughout():
     # given
     claim = _claim()
     fake = _FakeJobRepository(claim=claim)
+    boundary_events: list[str] = []
     dispatcher = Dispatcher(
         job_repository=fake,
         lease_duration_seconds=300,
         worker_poll_interval_seconds=2.0,
         lease_heartbeat_interval_seconds=60.0,
         analysis_runner=lambda **_: None,
+        analysis_boundary_observer=boundary_events.append,
     )
 
     # when
@@ -60,6 +62,7 @@ def test_dispatcher_completes_job_when_lease_is_held_throughout():
     assert processed is True
     assert fake.complete_calls == [(claim.id, claim.lease_token)]
     assert fake.fail_calls == []
+    assert boundary_events == ["before_analysis", "after_analysis"]
 
 
 def test_dispatcher_discards_result_when_lease_is_lost_during_analysis():

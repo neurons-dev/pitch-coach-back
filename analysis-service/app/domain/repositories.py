@@ -39,4 +39,9 @@ class JobRepository(Protocol):
         retryable: bool,
     ) -> bool: ...
 
-    def requeue_expired_leases(self, *, batch_size: int = 100) -> int: ...
+    def requeue_expired_leases(
+        self,
+        *,
+        batch_size: int = 100,
+        timeout_seconds: float | None = None,
+    ) -> int: ...
