@@ -62,6 +62,13 @@ class TestCalcFiller:
         result = calc_filler(_calc_input("", duration_ms=10_000))
         assert result.score == 100
 
+    def test_same_count_scores_better_over_longer_duration(self):
+        text = "음 그래서 어 시작하겠습니다"
+        short = calc_filler(_calc_input(text, duration_ms=10_000))
+        long = calc_filler(_calc_input(text, duration_ms=300_000))
+        assert long.score > short.score
+        assert short.raw_value == long.raw_value == 2.0
+
 
 class TestCalcStructure:
     def test_all_markers_present_scores_100(self):
@@ -75,6 +82,25 @@ class TestCalcStructure:
 
     def test_empty_text_scores_40(self):
         result = calc_structure(_calc_input("", duration_ms=10_000))
+        assert result.score == 40
+
+    def test_markers_in_correct_temporal_position_score_full(self):
+        segments = [
+            _segment(0, 1000, text="안녕하세요 오늘은"),
+            _segment(4000, 5000, text="그리고 예를 들어"),
+            _segment(9000, 10000, text="마지막으로 정리하면"),
+        ]
+        full_text = " ".join(s.text for s in segments)
+        result = calc_structure(_calc_input(full_text, 10_000, segments))
+        assert result.score == 100
+
+    def test_conclusion_marker_said_early_does_not_count_as_conclusion(self):
+        segments = [
+            _segment(0, 1000, text="마지막으로 시작하겠습니다"),
+            _segment(9000, 10000, text="이야기를 마칩니다"),
+        ]
+        full_text = " ".join(s.text for s in segments)
+        result = calc_structure(_calc_input(full_text, 10_000, segments))
         assert result.score == 40
 
 
@@ -137,7 +163,7 @@ class TestLocalPronunciationAssessor:
         result = LocalPronunciationAssessor().assess(_calc_input("text", 2000, segments))
         assert result.metric_code == "PRONUNCIATION"
         assert result.score > 90
-        assert result.details == {"provider": "local"}
+        assert result.details == {"provider": "local", "confidenceProxy": True}
 
     def test_low_confidence_segments_score_low(self):
         segments = [_segment(0, 1000, avg_logprob=-0.9)]

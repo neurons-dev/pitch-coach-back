@@ -17,6 +17,7 @@ _STRUCTURE_MARKERS = {
 
 _SPEECH_SPEED_TARGET_CPM = (300, 450)
 _LONG_PAUSE_THRESHOLD_MS = 2000
+_FILLER_PENALTY_PER_MINUTE = 10
 
 
 def _clamp(value: float, low: int = 0, high: int = 100) -> int:
@@ -44,19 +45,46 @@ def calc_filler(calc_input: MetricCalculationInput) -> MetricScoreInput:
         pattern = rf"(?<![가-힣]){re.escape(word)}(?![가-힣])"
         count += len(re.findall(pattern, calc_input.text))
 
-    score = _clamp(100 - count * 3)
-    return MetricScoreInput(metric_code="FILLER", score=score, raw_value=float(count), unit="COUNT")
+    duration_min = max(calc_input.duration_ms / 1000 / 60, 1 / 60)
+    per_minute = count / duration_min
+
+    score = _clamp(100 - per_minute * _FILLER_PENALTY_PER_MINUTE)
+    return MetricScoreInput(
+        metric_code="FILLER",
+        score=score,
+        raw_value=float(count),
+        unit="COUNT",
+        details={"perMinute": round(per_minute, 2)},
+    )
 
 
 def calc_structure(calc_input: MetricCalculationInput) -> MetricScoreInput:
-    text = calc_input.text
+    segments = calc_input.segments
+    if not segments:
+        text = calc_input.text
+        hits = sum(
+            1
+            for markers in _STRUCTURE_MARKERS.values()
+            if any(marker in text for marker in markers)
+        )
+        return MetricScoreInput(metric_code="STRUCTURE", score=_clamp(40 + hits * 20), raw_value=None, unit=None)
+
+    total_ms = max(calc_input.duration_ms, 1)
+    early_cutoff = total_ms / 3
+    late_cutoff = total_ms * 2 / 3
+
+    intro_text = " ".join(s.text for s in segments if s.start_ms < early_cutoff)
+    conclusion_text = " ".join(s.text for s in segments if s.start_ms >= late_cutoff)
+    body_text = calc_input.text
+
     hits = sum(
-        1
-        for markers in _STRUCTURE_MARKERS.values()
-        if any(marker in text for marker in markers)
+        (
+            any(marker in intro_text for marker in _STRUCTURE_MARKERS["intro"]),
+            any(marker in body_text for marker in _STRUCTURE_MARKERS["body"]),
+            any(marker in conclusion_text for marker in _STRUCTURE_MARKERS["conclusion"]),
+        )
     )
-    score = _clamp(40 + hits * 20)
-    return MetricScoreInput(metric_code="STRUCTURE", score=score, raw_value=None, unit=None)
+    return MetricScoreInput(metric_code="STRUCTURE", score=_clamp(40 + hits * 20), raw_value=None, unit=None)
 
 
 def calc_delivery(calc_input: MetricCalculationInput) -> MetricScoreInput:

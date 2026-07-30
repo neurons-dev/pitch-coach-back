@@ -11,7 +11,7 @@ class LocalPronunciationAssessor:
                 score=70,
                 raw_value=None,
                 unit=None,
-                details={"provider": "local"},
+                details={"provider": "local", "confidenceProxy": True},
             )
 
         avg_logprob = sum(s.avg_logprob for s in calc_input.segments) / len(calc_input.segments)
@@ -22,5 +22,5 @@ class LocalPronunciationAssessor:
             score=score,
             raw_value=round(avg_logprob, 3),
             unit="LOGPROB",
-            details={"provider": "local"},
+            details={"provider": "local", "confidenceProxy": True},
         )
