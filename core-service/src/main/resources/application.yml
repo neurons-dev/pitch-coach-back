@@ -73,3 +73,9 @@ aws:
   region: ${AWS_REGION:ap-northeast-2}
   s3:
     bucket: ${AWS_S3_BUCKET}
+
+analysis-service:
+  base-url: ${ANALYSIS_SERVICE_BASE_URL:http://localhost:8000}
+  internal-token: ${ANALYSIS_SERVICE_INTERNAL_TOKEN}
+  connect-timeout-ms: 3000
+  read-timeout-ms: 10000
