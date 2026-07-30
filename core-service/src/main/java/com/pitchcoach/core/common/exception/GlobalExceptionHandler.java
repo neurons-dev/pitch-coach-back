@@ -106,6 +106,17 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(ErrorResponse.of("잘못된 요청입니다: " + e.getMessage()));
     }
 
+    @ExceptionHandler(AnalysisNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleAnalysisNotFound(AnalysisNotFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse.of(e.getMessage()));
+    }
+
+    @ExceptionHandler(AnalysisServiceException.class)
+    public ResponseEntity<ErrorResponse> handleAnalysisServiceException(AnalysisServiceException e) {
+        log.error("analysis-service 호출에 실패했습니다.", e);
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(ErrorResponse.of(e.getMessage()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(Exception e) {
         log.error("처리되지 않은 예외가 발생했습니다.", e);

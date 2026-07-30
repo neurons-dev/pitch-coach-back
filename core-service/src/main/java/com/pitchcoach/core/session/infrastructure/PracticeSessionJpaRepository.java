@@ -8,4 +8,5 @@ import java.util.UUID;
 
 public interface PracticeSessionJpaRepository extends JpaRepository<PracticeSession, UUID> {
     Optional<PracticeSession> findByIdAndUserId(UUID id, Long userId);
+    Optional<PracticeSession> findByLatestAnalysisJobIdAndUserId(UUID latestAnalysisJobId, Long userId);
 }

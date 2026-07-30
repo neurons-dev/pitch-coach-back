@@ -31,6 +31,7 @@
 | 413 | 업로드 파일 크기 초과 (최대 50MB) |
 | 415 | 지원하지 않는 Content-Type |
 | 500 | 서버 내부 오류 |
+| 502 | analysis-service 호출 실패 |
 
 ---
 
@@ -248,6 +249,9 @@ POST /api/practice-sessions
   "audioSizeBytes": null,
   "durationMs": null,
   "recordedAt": null,
+  "latestAnalysisJobId": null,
+  "failureReason": null,
+  "analysisCompletedAt": null,
   "createdAt": "2026-07-30T12:00:00",
   "updatedAt": "2026-07-30T12:00:00"
 }
@@ -345,6 +349,9 @@ Content-Type: multipart/form-data
   "audioSizeBytes": 2456321,
   "durationMs": 184000,
   "recordedAt": "2026-07-30T12:05:00",
+  "latestAnalysisJobId": null,
+  "failureReason": null,
+  "analysisCompletedAt": null,
   "createdAt": "2026-07-30T12:00:00",
   "updatedAt": "2026-07-30T12:05:00"
 }
@@ -360,6 +367,89 @@ Content-Type: multipart/form-data
 
 ---
 
+### 발표 분석 요청
+
+```
+POST /api/practice-sessions/{sessionId}/analysis
+```
+
+본인 소유의 발표 연습 세션에 대해 analysis-service에 분석 작업을 요청합니다. core-service는 인증·소유권 검증 후 analysis-service의 내부 API로 요청을 위임합니다. 세션 상태가 `UPLOADED`일 때만 요청할 수 있습니다. 성공하면 상태가 `ANALYSIS_REQUESTED`로 바뀝니다.
+
+**Path Parameter**
+
+| 이름 | 타입 | 설명 |
+|---|---|---|
+| sessionId | UUID | 발표 연습 세션 id |
+
+**Response** `200 OK`
+
+```json
+{
+  "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "title": "프론트엔드 개발자 모의면접",
+  "practiceTypeCode": "INTERVIEW",
+  "status": "ANALYSIS_REQUESTED",
+  "audioOriginalName": "recording.m4a",
+  "audioContentType": "audio/x-m4a",
+  "audioSizeBytes": 2456321,
+  "durationMs": 184000,
+  "recordedAt": "2026-07-30T12:05:00",
+  "latestAnalysisJobId": "9c6b6e2a-1f3a-4b0a-9d3a-2f7e6a1c5b90",
+  "failureReason": null,
+  "analysisCompletedAt": null,
+  "createdAt": "2026-07-30T12:00:00",
+  "updatedAt": "2026-07-30T12:06:00"
+}
+```
+
+**에러**
+- `404` — 세션이 존재하지 않거나 본인 소유가 아님
+- `409` — 세션 상태가 `UPLOADED`가 아님
+- `401` — 인증 실패
+- `502` — analysis-service 호출 실패
+
+---
+
+## Analysis API
+
+> 인증 필요 (`Authorization: Bearer {accessToken}`)
+
+### 분석 진행 상태 조회
+
+```
+GET /api/analyses/{analysisJobId}/status
+```
+
+분석 작업의 진행 상태를 조회합니다. `analysisJobId`는 분석 요청 API 응답의 `latestAnalysisJobId` 값입니다. 본인이 요청한 분석 작업만 조회할 수 있습니다. 조회 시점에 analysis-service의 상태가 `completed`/`failed`/`cancelled`로 확인되면, 해당 세션의 `status`/`failureReason`/`analysisCompletedAt`이 함께 동기화됩니다.
+
+**Path Parameter**
+
+| 이름 | 타입 | 설명 |
+|---|---|---|
+| analysisJobId | UUID | 분석 작업 id |
+
+**Response** `200 OK`
+
+```json
+{
+  "practiceSessionId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "analysisJobId": "9c6b6e2a-1f3a-4b0a-9d3a-2f7e6a1c5b90",
+  "status": "processing",
+  "currentStage": "stt",
+  "progressPercent": 40,
+  "errorMessage": null
+}
+```
+
+`status`는 analysis-service의 원본 상태값입니다: `queued` / `processing` / `completed` / `failed` / `cancelled`
+
+**에러**
+- `404` — 분석 작업이 존재하지 않거나 본인 소유가 아님
+- `401` — 인증 실패
+- `502` — analysis-service 호출 실패
+
+---
+
 ## 상태 값 참고
 
 `practiceSessions.status`
@@ -368,9 +458,9 @@ Content-Type: multipart/form-data
 |---|---|
 | `CREATED` | 세션 생성됨, 음성 미업로드 |
 | `UPLOADED` | 음성 업로드 완료 |
-| `ANALYSIS_REQUESTED` | 분석 요청됨 (구현 예정) |
-| `COMPLETED` | 분석 완료 (구현 예정) |
-| `FAILED` | 분석 실패 (구현 예정) |
+| `ANALYSIS_REQUESTED` | 분석 요청됨, 진행 중 |
+| `COMPLETED` | 분석 완료 (점수·피드백 조회 API는 구현 예정) |
+| `FAILED` | 분석 실패 (`failureReason` 참고) |
 
 `practiceTypeCode`
 

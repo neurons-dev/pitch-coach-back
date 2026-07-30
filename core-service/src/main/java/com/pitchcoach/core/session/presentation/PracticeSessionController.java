@@ -2,6 +2,7 @@ package com.pitchcoach.core.session.presentation;
 
 import com.pitchcoach.core.session.application.CreatePracticeSessionService;
 import com.pitchcoach.core.session.application.GetPracticeSessionService;
+import com.pitchcoach.core.session.application.RequestPracticeSessionAnalysisService;
 import com.pitchcoach.core.session.application.UpdatePracticeSessionTitleService;
 import com.pitchcoach.core.session.application.UploadPracticeSessionAudioService;
 import com.pitchcoach.core.session.presentation.dto.CreatePracticeSessionRequest;
@@ -32,6 +33,7 @@ public class PracticeSessionController {
     private final UpdatePracticeSessionTitleService updatePracticeSessionTitleService;
     private final GetPracticeSessionService getPracticeSessionService;
     private final UploadPracticeSessionAudioService uploadPracticeSessionAudioService;
+    private final RequestPracticeSessionAnalysisService requestPracticeSessionAnalysisService;
 
     @Operation(summary = "발표 연습 세션 단건 조회", description = "본인 소유의 발표 연습 세션을 조회합니다.")
     @GetMapping("/{sessionId}")
@@ -71,5 +73,14 @@ public class PracticeSessionController {
             @RequestParam("durationMs") @Positive long durationMs
     ) {
         return ResponseEntity.ok(uploadPracticeSessionAudioService.upload(userId, sessionId, file, durationMs));
+    }
+
+    @Operation(summary = "발표 분석 요청", description = "본인 소유의 발표 연습 세션에 대해 analysis-service에 분석을 요청합니다.")
+    @PostMapping("/{sessionId}/analysis")
+    public ResponseEntity<PracticeSessionResponse> requestAnalysis(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable UUID sessionId
+    ) {
+        return ResponseEntity.ok(requestPracticeSessionAnalysisService.request(userId, sessionId));
     }
 }

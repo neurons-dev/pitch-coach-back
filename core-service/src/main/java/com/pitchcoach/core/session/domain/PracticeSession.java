@@ -53,6 +53,15 @@ public class PracticeSession {
     @Column(name = "recorded_at")
     private LocalDateTime recordedAt;
 
+    @Column(name = "latest_analysis_job_id")
+    private UUID latestAnalysisJobId;
+
+    @Column(name = "failure_reason")
+    private String failureReason;
+
+    @Column(name = "analysis_completed_at")
+    private LocalDateTime analysisCompletedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -92,5 +101,29 @@ public class PracticeSession {
         this.durationMs = durationMs;
         this.recordedAt = LocalDateTime.now();
         this.status = PracticeSessionStatus.UPLOADED;
+    }
+
+    public boolean canRequestAnalysis() {
+        return status == PracticeSessionStatus.UPLOADED;
+    }
+
+    public void requestAnalysis(UUID analysisJobId) {
+        this.latestAnalysisJobId = analysisJobId;
+        this.status = PracticeSessionStatus.ANALYSIS_REQUESTED;
+    }
+
+    public boolean isAnalysisPending() {
+        return status == PracticeSessionStatus.ANALYSIS_REQUESTED;
+    }
+
+    public void completeAnalysis() {
+        this.status = PracticeSessionStatus.COMPLETED;
+        this.analysisCompletedAt = LocalDateTime.now();
+    }
+
+    public void failAnalysis(String reason) {
+        this.status = PracticeSessionStatus.FAILED;
+        this.failureReason = reason;
+        this.analysisCompletedAt = LocalDateTime.now();
     }
 }

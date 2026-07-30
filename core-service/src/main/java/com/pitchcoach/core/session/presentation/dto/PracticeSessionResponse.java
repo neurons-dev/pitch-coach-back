@@ -15,6 +15,9 @@ public record PracticeSessionResponse(
         Long audioSizeBytes,
         Long durationMs,
         LocalDateTime recordedAt,
+        UUID latestAnalysisJobId,
+        String failureReason,
+        LocalDateTime analysisCompletedAt,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
@@ -29,6 +32,9 @@ public record PracticeSessionResponse(
                 session.getAudioSizeBytes(),
                 session.getDurationMs(),
                 session.getRecordedAt(),
+                session.getLatestAnalysisJobId(),
+                session.getFailureReason(),
+                session.getAnalysisCompletedAt(),
                 session.getCreatedAt(),
                 session.getUpdatedAt()
         );
