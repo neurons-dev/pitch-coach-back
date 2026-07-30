@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 
 from app.domain.entities import MetricCalculationInput, MetricScoreInput
-from app.domain.pronunciation import PronunciationAssessor
 
 SCORING_RULE_VERSION = "coach-ko-v1"
 
@@ -128,15 +127,16 @@ def calc_fluency(calc_input: MetricCalculationInput) -> MetricScoreInput:
 
 def calc_all_metrics(
     calc_input: MetricCalculationInput,
-    pronunciation_assessor: PronunciationAssessor,
+    pronunciation_metric: MetricScoreInput,
+    fluency_override: MetricScoreInput | None = None,
 ) -> list[MetricScoreInput]:
     return [
         calc_speed(calc_input),
         calc_filler(calc_input),
         calc_structure(calc_input),
         calc_delivery(calc_input),
-        pronunciation_assessor.assess(calc_input),
-        calc_fluency(calc_input),
+        pronunciation_metric,
+        fluency_override or calc_fluency(calc_input),
     ]
 
 

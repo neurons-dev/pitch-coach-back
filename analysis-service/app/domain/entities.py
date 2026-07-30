@@ -61,6 +61,15 @@ class MetricCalculationInput:
 
 
 @dataclass(frozen=True)
+class PronunciationAssessment:
+    provider: str
+    pronunciation_score: int
+    fluency_score: int | None = None
+    fallback_reason: str | None = None
+    raw_response: dict = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class MetricScoreInput:
     metric_code: str
     score: int

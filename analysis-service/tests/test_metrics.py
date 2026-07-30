@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from app.domain.entities import MetricCalculationInput, MetricScoreInput, TranscriptSegmentFeatures
 from app.domain.feedback import build_coach_comment, build_feedback_items
 from app.domain.metrics import (
@@ -160,32 +162,53 @@ class TestCalcFluency:
 class TestLocalPronunciationAssessor:
     def test_high_confidence_segments_score_high(self):
         segments = [_segment(0, 1000, avg_logprob=-0.05), _segment(1000, 2000, avg_logprob=-0.02)]
-        result = LocalPronunciationAssessor().assess(_calc_input("text", 2000, segments))
-        assert result.metric_code == "PRONUNCIATION"
-        assert result.score > 90
-        assert result.details == {"provider": "local", "confidenceProxy": True}
+        result = LocalPronunciationAssessor().assess(
+            audio_path=Path("unused.wav"), calc_input=_calc_input("text", 2000, segments), language="ko-KR"
+        )
+        assert result.provider == "local"
+        assert result.pronunciation_score > 90
+        assert result.fluency_score is None
+        assert result.fallback_reason is None
 
     def test_low_confidence_segments_score_low(self):
         segments = [_segment(0, 1000, avg_logprob=-0.9)]
-        result = LocalPronunciationAssessor().assess(_calc_input("text", 1000, segments))
-        assert result.score < 20
+        result = LocalPronunciationAssessor().assess(
+            audio_path=Path("unused.wav"), calc_input=_calc_input("text", 1000, segments), language="ko-KR"
+        )
+        assert result.pronunciation_score < 20
 
     def test_no_segments_scores_default_70(self):
-        result = LocalPronunciationAssessor().assess(_calc_input("text", 1000, []))
-        assert result.score == 70
+        result = LocalPronunciationAssessor().assess(
+            audio_path=Path("unused.wav"), calc_input=_calc_input("text", 1000, []), language="ko-KR"
+        )
+        assert result.pronunciation_score == 70
 
     def test_extreme_logprob_clamped_within_0_100(self):
         segments = [_segment(0, 1000, avg_logprob=-5.0)]
-        result = LocalPronunciationAssessor().assess(_calc_input("text", 1000, segments))
-        assert 0 <= result.score <= 100
+        result = LocalPronunciationAssessor().assess(
+            audio_path=Path("unused.wav"), calc_input=_calc_input("text", 1000, segments), language="ko-KR"
+        )
+        assert 0 <= result.pronunciation_score <= 100
 
 
 class TestCalcAllMetrics:
     def test_returns_six_metrics_including_pronunciation(self):
         segments = [_segment(0, 1000), _segment(1000, 2000)]
-        metrics = calc_all_metrics(_calc_input("안녕하세요", 2000, segments), LocalPronunciationAssessor())
+        pronunciation_metric = MetricScoreInput(metric_code="PRONUNCIATION", score=80)
+        metrics = calc_all_metrics(_calc_input("안녕하세요", 2000, segments), pronunciation_metric)
         codes = {m.metric_code for m in metrics}
         assert codes == {"SPEED", "FILLER", "STRUCTURE", "DELIVERY", "PRONUNCIATION", "FLUENCY"}
+
+    def test_fluency_override_replaces_local_fluency_metric(self):
+        segments = [_segment(0, 1000), _segment(1000, 2000)]
+        pronunciation_metric = MetricScoreInput(metric_code="PRONUNCIATION", score=80)
+        fluency_override = MetricScoreInput(metric_code="FLUENCY", score=99, details={"provider": "azure"})
+        metrics = calc_all_metrics(
+            _calc_input("안녕하세요", 2000, segments), pronunciation_metric, fluency_override
+        )
+        fluency = next(m for m in metrics if m.metric_code == "FLUENCY")
+        assert fluency.score == 99
+        assert fluency.details == {"provider": "azure"}
 
 
 class TestCalcOverallScore:

@@ -66,6 +66,16 @@ class Settings(BaseSettings):
     whisper_compute_type: str = "int8"
     stt_timeout_seconds: float = Field(default=120.0, gt=0)
 
+    pronunciation_provider: str = "local"
+    pronunciation_provider_timeout_seconds: float = Field(default=15.0, gt=0)
+
+    azure_speech_key: str | None = None
+    azure_speech_region: str = "koreacentral"
+
+    clova_invoke_url: str | None = None
+    clova_secret_key: str | None = None
+    clova_max_chunk_seconds: int = Field(default=55, gt=0)
+
     def db_pool_size(self, role: Literal["api", "worker"]) -> int:
         if role == "api":
             return self.api_db_pool_size

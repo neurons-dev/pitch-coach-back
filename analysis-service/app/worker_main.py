@@ -13,7 +13,7 @@ from app.infrastructure.audio.storage import S3AudioStorage
 from app.infrastructure.audio.transcriber import FasterWhisperTranscriber
 from app.infrastructure.db.job_repository import SqlAlchemyJobRepository
 from app.infrastructure.db.session import DatabaseSessionProvider
-from app.infrastructure.pronunciation.local import LocalPronunciationAssessor
+from app.infrastructure.pronunciation.factory import create_pronunciation_assessor
 
 logging.basicConfig(level=get_settings().log_level)
 logger = logging.getLogger(__name__)
@@ -43,7 +43,7 @@ def main() -> None:
         audio_storage=S3AudioStorage(settings=settings),
         audio_normalizer=FfmpegAudioNormalizer(),
         speech_transcriber=FasterWhisperTranscriber(settings=settings),
-        pronunciation_assessor=LocalPronunciationAssessor(),
+        pronunciation_assessor=create_pronunciation_assessor(settings),
         pipeline_version=settings.pipeline_version,
     )
     dispatcher = Dispatcher(
