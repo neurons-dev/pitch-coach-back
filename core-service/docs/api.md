@@ -27,8 +27,9 @@
 | 401 | 인증 실패, 잘못되거나 만료된 토큰, 미인증 요청 |
 | 403 | 비활성화(차단/탈퇴)된 사용자 |
 | 404 | 리소스를 찾을 수 없음 (또는 본인 소유가 아님) |
-| 409 | 중복된 리소스 |
-| 415 | 지원하지 않는 Content-Type (JSON 아님) |
+| 409 | 중복된 리소스, 현재 상태에서 허용되지 않는 요청 |
+| 413 | 업로드 파일 크기 초과 (최대 50MB) |
+| 415 | 지원하지 않는 Content-Type |
 | 500 | 서버 내부 오류 |
 
 ---
@@ -242,6 +243,11 @@ POST /api/practice-sessions
   "title": "프론트엔드 개발자 모의면접",
   "practiceTypeCode": "INTERVIEW",
   "status": "CREATED",
+  "audioOriginalName": null,
+  "audioContentType": null,
+  "audioSizeBytes": null,
+  "durationMs": null,
+  "recordedAt": null,
   "createdAt": "2026-07-30T12:00:00",
   "updatedAt": "2026-07-30T12:00:00"
 }
@@ -304,6 +310,56 @@ PATCH /api/practice-sessions/{sessionId}
 
 ---
 
+### 발표 연습 세션 음성 파일 업로드
+
+```
+POST /api/practice-sessions/{sessionId}/audio
+Content-Type: multipart/form-data
+```
+
+본인 소유의 발표 연습 세션에 녹음된 음성 파일을 업로드합니다. core-service가 파일을 받아 S3에 업로드합니다. 세션 상태가 `CREATED` 또는 `FAILED`일 때만 업로드할 수 있습니다. 업로드에 성공하면 상태가 `UPLOADED`로 바뀝니다.
+
+**Path Parameter**
+
+| 이름 | 타입 | 설명 |
+|---|---|---|
+| sessionId | UUID | 발표 연습 세션 id |
+
+**Form Fields**
+
+| 필드 | 타입 | 제약 |
+|---|---|---|
+| file | file | 필수, 최대 50MB, 지원 형식: `audio/mpeg`, `audio/mp4`, `audio/x-m4a`, `audio/aac`, `audio/wav`, `audio/x-wav`, `audio/wave` |
+| durationMs | long | 필수, 녹음 길이(밀리초) — 클라이언트에서 측정한 값을 전달 |
+
+**Response** `200 OK`
+
+```json
+{
+  "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "title": "프론트엔드 개발자 모의면접",
+  "practiceTypeCode": "INTERVIEW",
+  "status": "UPLOADED",
+  "audioOriginalName": "recording.m4a",
+  "audioContentType": "audio/x-m4a",
+  "audioSizeBytes": 2456321,
+  "durationMs": 184000,
+  "recordedAt": "2026-07-30T12:05:00",
+  "createdAt": "2026-07-30T12:00:00",
+  "updatedAt": "2026-07-30T12:05:00"
+}
+```
+
+**에러**
+- `400` — 지원하지 않는 오디오 형식
+- `404` — 세션이 존재하지 않거나 본인 소유가 아님
+- `409` — 현재 세션 상태에서는 업로드 불가 (`UPLOADED`/`ANALYSIS_REQUESTED`/`COMPLETED` 상태)
+- `413` — 파일 크기 초과 (최대 50MB)
+- `401` — 인증 실패
+- `500` — S3 업로드 실패
+
+---
+
 ## 상태 값 참고
 
 `practiceSessions.status`
@@ -311,7 +367,7 @@ PATCH /api/practice-sessions/{sessionId}
 | 값 | 의미 |
 |---|---|
 | `CREATED` | 세션 생성됨, 음성 미업로드 |
-| `UPLOADED` | 음성 업로드 완료 (구현 예정) |
+| `UPLOADED` | 음성 업로드 완료 |
 | `ANALYSIS_REQUESTED` | 분석 요청됨 (구현 예정) |
 | `COMPLETED` | 분석 완료 (구현 예정) |
 | `FAILED` | 분석 실패 (구현 예정) |

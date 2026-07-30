@@ -6,9 +6,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @Slf4j
 @RestControllerAdvice
@@ -56,7 +59,29 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
     public ResponseEntity<ErrorResponse> handleUnsupportedMediaType(HttpMediaTypeNotSupportedException e) {
         return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
-                .body(ErrorResponse.of("Content-Type: application/json 으로 요청해주세요."));
+                .body(ErrorResponse.of("지원하지 않는 Content-Type입니다. 지원 형식: " + e.getSupportedMediaTypes()));
+    }
+
+    @ExceptionHandler(UnsupportedAudioFormatException.class)
+    public ResponseEntity<ErrorResponse> handleUnsupportedAudioFormat(UnsupportedAudioFormatException e) {
+        return ResponseEntity.badRequest().body(ErrorResponse.of(e.getMessage()));
+    }
+
+    @ExceptionHandler(InvalidPracticeSessionStateException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidPracticeSessionState(InvalidPracticeSessionStateException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.of(e.getMessage()));
+    }
+
+    @ExceptionHandler(AudioUploadFailedException.class)
+    public ResponseEntity<ErrorResponse> handleAudioUploadFailed(AudioUploadFailedException e) {
+        log.error("오디오 파일 업로드에 실패했습니다.", e);
+        return ResponseEntity.internalServerError().body(ErrorResponse.of(e.getMessage()));
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException e) {
+        return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE)
+                .body(ErrorResponse.of("업로드 가능한 파일 크기를 초과했습니다."));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
@@ -68,6 +93,17 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
         return ResponseEntity.badRequest()
                 .body(ErrorResponse.of(e.getName() + " 값이 올바르지 않습니다: " + e.getValue()));
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ErrorResponse> handleMissingParameter(MissingServletRequestParameterException e) {
+        return ResponseEntity.badRequest()
+                .body(ErrorResponse.of("필수 파라미터가 누락되었습니다: " + e.getParameterName()));
+    }
+
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ErrorResponse> handleMethodValidation(HandlerMethodValidationException e) {
+        return ResponseEntity.badRequest().body(ErrorResponse.of("잘못된 요청입니다: " + e.getMessage()));
     }
 
     @ExceptionHandler(Exception.class)

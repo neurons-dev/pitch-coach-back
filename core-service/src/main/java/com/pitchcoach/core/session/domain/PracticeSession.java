@@ -35,6 +35,24 @@ public class PracticeSession {
     @Column(nullable = false)
     private PracticeSessionStatus status = PracticeSessionStatus.CREATED;
 
+    @Column(name = "audio_object_key")
+    private String audioObjectKey;
+
+    @Column(name = "audio_original_name")
+    private String audioOriginalName;
+
+    @Column(name = "audio_content_type")
+    private String audioContentType;
+
+    @Column(name = "audio_size_bytes")
+    private Long audioSizeBytes;
+
+    @Column(name = "duration_ms")
+    private Long durationMs;
+
+    @Column(name = "recorded_at")
+    private LocalDateTime recordedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -54,5 +72,25 @@ public class PracticeSession {
 
     public void renameTitle(String title) {
         this.title = title;
+    }
+
+    public boolean canUploadAudio() {
+        return status == PracticeSessionStatus.CREATED || status == PracticeSessionStatus.FAILED;
+    }
+
+    public void completeAudioUpload(
+            String audioObjectKey,
+            String audioOriginalName,
+            String audioContentType,
+            long audioSizeBytes,
+            long durationMs
+    ) {
+        this.audioObjectKey = audioObjectKey;
+        this.audioOriginalName = audioOriginalName;
+        this.audioContentType = audioContentType;
+        this.audioSizeBytes = audioSizeBytes;
+        this.durationMs = durationMs;
+        this.recordedAt = LocalDateTime.now();
+        this.status = PracticeSessionStatus.UPLOADED;
     }
 }
