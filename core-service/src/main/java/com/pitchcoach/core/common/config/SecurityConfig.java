@@ -1,5 +1,6 @@
 package com.pitchcoach.core.common.config;
 
+import com.pitchcoach.core.common.security.JwtAuthenticationEntryPoint;
 import com.pitchcoach.core.common.security.JwtAuthenticationFilter;
 import com.pitchcoach.core.common.security.OAuth2LoginFailureHandler;
 import com.pitchcoach.core.common.security.OAuth2LoginSuccessHandler;
@@ -22,6 +23,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final CustomOAuth2UserService customOAuth2UserService;
     private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
     private final OAuth2LoginFailureHandler oAuth2LoginFailureHandler;
@@ -38,6 +40,7 @@ public class SecurityConfig {
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/auth/**", "/actuator/**", "/oauth2/**", "/login/**",
