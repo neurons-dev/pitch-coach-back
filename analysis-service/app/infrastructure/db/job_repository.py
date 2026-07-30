@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import case, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import DBAPIError, TimeoutError as SqlAlchemyTimeoutError
+from sqlalchemy.orm import joinedload, selectinload
 
 from app.domain.entities import AnalysisResultInput, ClaimedJob, JobCreation, JobCreationDisposition
 from app.domain.errors import IdempotencyKeyConflictError, RepositoryTimeoutError
@@ -92,7 +93,14 @@ class SqlAlchemyJobRepository:
 
     def get_job(self, job_id: uuid.UUID) -> AnalysisJob | None:
         with self._db.read_session_scope() as session:
-            job = session.get(AnalysisJob, job_id)
+            job = session.scalars(
+                select(AnalysisJob)
+                .where(AnalysisJob.id == job_id)
+                .options(
+                    joinedload(AnalysisJob.result).selectinload(AnalysisResult.metric_scores),
+                    joinedload(AnalysisJob.result).selectinload(AnalysisResult.feedback_items),
+                )
+            ).one_or_none()
             if job is not None:
                 session.expunge(job)
             return job
@@ -193,41 +201,38 @@ class SqlAlchemyJobRepository:
             if job is None:
                 return False
 
-            session.add(
-                AnalysisResult(
-                    job_id=job_id,
-                    overall_score=result.overall_score,
-                    coach_comment=result.coach_comment,
-                    transcript_text=result.transcript_text,
-                    transcript_segments=result.transcript_segments,
-                    total_speech_ms=result.total_speech_ms,
-                    total_silence_ms=result.total_silence_ms,
-                    pipeline_version=result.pipeline_version,
-                    stt_model_version=result.stt_model_version,
-                    scoring_rule_version=result.scoring_rule_version,
-                    model_info=result.model_info,
-                    metric_scores=[
-                        AnalysisMetricScore(
-                            metric_code=metric.metric_code,
-                            score=metric.score,
-                            raw_value=metric.raw_value,
-                            unit=metric.unit,
-                            details=metric.details,
-                        )
-                        for metric in result.metric_scores
-                    ],
-                    feedback_items=[
-                        FeedbackItem(
-                            metric_code=item.metric_code,
-                            item_type=item.item_type,
-                            title=item.title,
-                            description=item.description,
-                            evidence=item.evidence,
-                            sort_order=item.sort_order,
-                        )
-                        for item in result.feedback_items
-                    ],
-                )
+            job.result = AnalysisResult(
+                overall_score=result.overall_score,
+                coach_comment=result.coach_comment,
+                transcript_text=result.transcript_text,
+                transcript_segments=result.transcript_segments,
+                total_speech_ms=result.total_speech_ms,
+                total_silence_ms=result.total_silence_ms,
+                pipeline_version=result.pipeline_version,
+                stt_model_version=result.stt_model_version,
+                scoring_rule_version=result.scoring_rule_version,
+                model_info=result.model_info,
+                metric_scores=[
+                    AnalysisMetricScore(
+                        metric_code=metric.metric_code,
+                        score=metric.score,
+                        raw_value=metric.raw_value,
+                        unit=metric.unit,
+                        details=metric.details,
+                    )
+                    for metric in result.metric_scores
+                ],
+                feedback_items=[
+                    FeedbackItem(
+                        metric_code=item.metric_code,
+                        item_type=item.item_type,
+                        title=item.title,
+                        description=item.description,
+                        evidence=item.evidence,
+                        sort_order=item.sort_order,
+                    )
+                    for item in result.feedback_items
+                ],
             )
 
             now = datetime.now(timezone.utc)

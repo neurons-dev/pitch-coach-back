@@ -100,6 +100,10 @@ class AnalysisJob(Base):
         TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
+    result: Mapped["AnalysisResult | None"] = relationship(
+        back_populates="job", uselist=False, cascade="all, delete-orphan", lazy="raise"
+    )
+
 
 class AnalysisResult(Base):
     __tablename__ = "analysis_results"
@@ -158,6 +162,7 @@ class AnalysisResult(Base):
         TIMESTAMP(timezone=True), server_default=func.now()
     )
 
+    job: Mapped[AnalysisJob] = relationship(back_populates="result")
     metric_scores: Mapped[list["AnalysisMetricScore"]] = relationship(
         back_populates="result",
         cascade="all, delete-orphan",

@@ -7,6 +7,28 @@ from enum import Enum
 from typing import Protocol
 
 
+class MetricScoreLike(Protocol):
+    metric_code: str
+    score: int
+    raw_value: float | None
+    unit: str | None
+
+
+class FeedbackItemLike(Protocol):
+    item_type: str
+    title: str
+    description: str
+    metric_code: str | None
+    sort_order: int
+
+
+class AnalysisJobResultLike(Protocol):
+    overall_score: int
+    coach_comment: str | None
+    metric_scores: list[MetricScoreLike]
+    feedback_items: list[FeedbackItemLike]
+
+
 class AnalysisJobLike(Protocol):
     id: uuid.UUID
     status: str
@@ -19,6 +41,7 @@ class AnalysisJobLike(Protocol):
     retry_count: int
     max_retries: int
     created_at: datetime
+    result: AnalysisJobResultLike | None
 
 
 @dataclass(frozen=True)
