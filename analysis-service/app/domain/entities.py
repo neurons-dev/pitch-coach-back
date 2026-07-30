@@ -46,6 +46,21 @@ class JobCreation:
 
 
 @dataclass(frozen=True)
+class TranscriptSegmentFeatures:
+    start_ms: int
+    end_ms: int
+    text: str
+    avg_logprob: float
+
+
+@dataclass(frozen=True)
+class MetricCalculationInput:
+    text: str
+    duration_ms: int
+    segments: list[TranscriptSegmentFeatures] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
 class MetricScoreInput:
     metric_code: str
     score: int

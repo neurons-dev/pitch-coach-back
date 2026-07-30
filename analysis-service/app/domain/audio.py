@@ -10,6 +10,7 @@ class TranscriptSegment:
     start_ms: int
     end_ms: int
     text: str
+    avg_logprob: float
 
 
 @dataclass(frozen=True)

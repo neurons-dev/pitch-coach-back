@@ -60,6 +60,7 @@ class FasterWhisperTranscriber:
                     start_ms=int(segment.start * 1000),
                     end_ms=int(segment.end * 1000),
                     text=segment.text.strip(),
+                    avg_logprob=float(segment.avg_logprob),
                 )
                 for segment in segments_iter
             ]
