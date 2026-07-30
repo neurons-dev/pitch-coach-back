@@ -34,5 +34,9 @@ class AudioStorage(Protocol):
     def download(self, object_key: str) -> DownloadedAudio: ...
 
 
+class AudioNormalizer(Protocol):
+    def normalize(self, input_path: Path) -> Path: ...
+
+
 class SpeechTranscriber(Protocol):
     def transcribe(self, audio_path: Path, *, language: str) -> Transcript: ...

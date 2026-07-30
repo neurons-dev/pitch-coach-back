@@ -9,6 +9,7 @@ from sqlalchemy.exc import TimeoutError as SqlAlchemyTimeoutError
 
 from app.application.workers.dispatcher import Dispatcher
 from app.core.config import Settings
+from app.domain.entities import AnalysisResultInput
 from app.domain.errors import RepositoryTimeoutError
 from app.infrastructure.db import session as session_module
 from app.infrastructure.db.job_repository import SqlAlchemyJobRepository
@@ -155,6 +156,12 @@ def test_analysis_runner_does_not_hold_database_connection(
     def run_analysis(**_):
         checked_out_during_analysis.append(
             database_session_provider.pool_snapshot()["checked_out"]
+        )
+        return AnalysisResultInput(
+            overall_score=80,
+            pipeline_version="audio-pipeline-v1",
+            stt_model_version="faster-whisper-tiny",
+            scoring_rule_version="coach-ko-v1",
         )
 
     dispatcher = Dispatcher(

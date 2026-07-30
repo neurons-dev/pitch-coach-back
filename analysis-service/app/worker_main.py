@@ -4,11 +4,16 @@ import logging
 import signal
 import threading
 
+from app.application.analysis.analysis_use_case import AnalysisUseCase
 from app.application.workers.dispatcher import Dispatcher
 from app.application.workers.watchdog import Watchdog
 from app.core.config import get_settings
+from app.infrastructure.audio.normalizer import FfmpegAudioNormalizer
+from app.infrastructure.audio.storage import S3AudioStorage
+from app.infrastructure.audio.transcriber import FasterWhisperTranscriber
 from app.infrastructure.db.job_repository import SqlAlchemyJobRepository
 from app.infrastructure.db.session import DatabaseSessionProvider
+from app.infrastructure.pronunciation.local import LocalPronunciationAssessor
 
 logging.basicConfig(level=get_settings().log_level)
 logger = logging.getLogger(__name__)
@@ -34,11 +39,19 @@ def main() -> None:
     )
     session_provider.log_pool_status("worker_startup")
     job_repository = SqlAlchemyJobRepository(session_provider=session_provider)
+    analysis_use_case = AnalysisUseCase(
+        audio_storage=S3AudioStorage(settings=settings),
+        audio_normalizer=FfmpegAudioNormalizer(),
+        speech_transcriber=FasterWhisperTranscriber(settings=settings),
+        pronunciation_assessor=LocalPronunciationAssessor(),
+        pipeline_version=settings.pipeline_version,
+    )
     dispatcher = Dispatcher(
         job_repository=job_repository,
         lease_duration_seconds=settings.lease_duration_seconds,
         worker_poll_interval_seconds=settings.worker_poll_interval_seconds,
         lease_heartbeat_interval_seconds=settings.lease_heartbeat_interval_seconds,
+        analysis_runner=analysis_use_case.run,
         analysis_boundary_observer=session_provider.log_pool_status,
     )
     watchdog = Watchdog(

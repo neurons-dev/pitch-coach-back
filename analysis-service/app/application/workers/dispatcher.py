@@ -2,22 +2,17 @@ from __future__ import annotations
 
 import logging
 import threading
-import time
 from collections.abc import Callable
 
 from app.application.workers.lease_heartbeat import LeaseHeartbeat
+from app.domain.entities import AnalysisResultInput
 from app.domain.errors import AnalysisError
 from app.domain.repositories import JobRepository
 
 logger = logging.getLogger(__name__)
 
-AnalysisRunner = Callable[..., None]
+AnalysisRunner = Callable[..., AnalysisResultInput]
 AnalysisBoundaryObserver = Callable[[str], None]
-
-
-def _stub_run_analysis(*, audio_object_key: str, analysis_version: str) -> None:
-    """실제 분석 파이프라인이 아직 없어 큐 동작만 검증하는 임시 구현."""
-    time.sleep(0.1)
 
 
 class Dispatcher:
@@ -28,7 +23,7 @@ class Dispatcher:
         lease_duration_seconds: int,
         worker_poll_interval_seconds: float,
         lease_heartbeat_interval_seconds: float,
-        analysis_runner: AnalysisRunner = _stub_run_analysis,
+        analysis_runner: AnalysisRunner,
         analysis_boundary_observer: AnalysisBoundaryObserver | None = None,
     ) -> None:
         self._jobs = job_repository
@@ -86,7 +81,7 @@ class Dispatcher:
                     lease_duration_seconds=lease_duration_seconds,
                     interval_seconds=heartbeat_interval,
                 ) as heartbeat:
-                    self._analysis_runner(
+                    result = self._analysis_runner(
                         audio_object_key=claim.audio_object_key,
                         analysis_version=claim.analysis_version,
                     )
@@ -123,9 +118,11 @@ class Dispatcher:
             logger.warning("discarded result after lease loss job=%s", claim.id)
             return True
 
-        completed = self._jobs.complete_job(claim.id, lease_token=claim.lease_token)
-        if completed:
-            logger.info("dispatcher completed job=%s", claim.id)
+        saved = self._jobs.save_result_and_complete(
+            claim.id, lease_token=claim.lease_token, result=result
+        )
+        if saved:
+            logger.info("dispatcher completed job=%s score=%s", claim.id, result.overall_score)
         else:
             logger.warning("discarded stale result job=%s", claim.id)
         return True

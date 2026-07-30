@@ -53,6 +53,8 @@ class Settings(BaseSettings):
     watchdog_max_batches_per_cycle: int = Field(default=10, ge=1)
     watchdog_max_run_seconds: float = Field(default=10.0, gt=0)
 
+    pipeline_version: str = "audio-pipeline-v1"
+
     aws_region: str = "ap-northeast-2"
     s3_bucket: str = "pitch-coach-bucket"
     audio_download_timeout_seconds: float = Field(default=30.0, gt=0)
