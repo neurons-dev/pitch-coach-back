@@ -10,6 +10,11 @@ public record PracticeSessionResponse(
         String title,
         String practiceTypeCode,
         String status,
+        String audioOriginalName,
+        String audioContentType,
+        Long audioSizeBytes,
+        Long durationMs,
+        LocalDateTime recordedAt,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
@@ -19,6 +24,11 @@ public record PracticeSessionResponse(
                 session.getTitle(),
                 session.getPracticeType().getCode(),
                 session.getStatus().name(),
+                session.getAudioOriginalName(),
+                session.getAudioContentType(),
+                session.getAudioSizeBytes(),
+                session.getDurationMs(),
+                session.getRecordedAt(),
                 session.getCreatedAt(),
                 session.getUpdatedAt()
         );
