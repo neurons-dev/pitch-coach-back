@@ -4,6 +4,7 @@ from app.domain.audio import AudioNormalizer, AudioStorage, SpeechTranscriber
 from app.domain.entities import (
     AnalysisResultInput,
     MetricCalculationInput,
+    MetricScoreInput,
     TranscriptSegmentFeatures,
 )
 from app.domain.feedback import build_coach_comment, build_feedback_items
@@ -45,24 +46,42 @@ class AnalysisUseCase:
 
         try:
             transcript = self._speech_transcriber.transcribe(normalized_path, language=self._language)
+            calc_input = MetricCalculationInput(
+                text=transcript.text,
+                duration_ms=transcript.duration_ms,
+                segments=[
+                    TranscriptSegmentFeatures(
+                        start_ms=segment.start_ms,
+                        end_ms=segment.end_ms,
+                        text=segment.text,
+                        avg_logprob=segment.avg_logprob,
+                    )
+                    for segment in transcript.segments
+                ],
+            )
+            assessment = self._pronunciation_assessor.assess(
+                audio_path=normalized_path, calc_input=calc_input, language=self._language
+            )
         finally:
             normalized_path.unlink(missing_ok=True)
 
-        calc_input = MetricCalculationInput(
-            text=transcript.text,
-            duration_ms=transcript.duration_ms,
-            segments=[
-                TranscriptSegmentFeatures(
-                    start_ms=segment.start_ms,
-                    end_ms=segment.end_ms,
-                    text=segment.text,
-                    avg_logprob=segment.avg_logprob,
-                )
-                for segment in transcript.segments
-            ],
+        pronunciation_details = {"provider": assessment.provider}
+        if assessment.fallback_reason is not None:
+            pronunciation_details["fallbackReason"] = assessment.fallback_reason
+        pronunciation_metric = MetricScoreInput(
+            metric_code="PRONUNCIATION",
+            score=assessment.pronunciation_score,
+            details=pronunciation_details,
         )
+        fluency_override = None
+        if assessment.fluency_score is not None:
+            fluency_override = MetricScoreInput(
+                metric_code="FLUENCY",
+                score=assessment.fluency_score,
+                details=pronunciation_details,
+            )
 
-        metrics = calc_all_metrics(calc_input, self._pronunciation_assessor)
+        metrics = calc_all_metrics(calc_input, pronunciation_metric, fluency_override)
         overall_score = calc_overall_score(metrics)
         total_speech_ms, total_silence_ms = calc_speech_silence_ms(calc_input)
         coach_comment = build_coach_comment(overall_score, metrics)
@@ -81,7 +100,7 @@ class AnalysisUseCase:
             ],
             total_speech_ms=total_speech_ms,
             total_silence_ms=total_silence_ms,
-            model_info={"language": transcript.language},
+            model_info={"language": transcript.language, "pronunciationProvider": assessment.provider},
             metric_scores=metrics,
             feedback_items=feedback_items,
         )

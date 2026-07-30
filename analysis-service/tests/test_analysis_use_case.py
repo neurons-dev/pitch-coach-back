@@ -14,7 +14,7 @@ import pytest
 from app.application.analysis.analysis_use_case import AnalysisUseCase
 from app.core.config import Settings
 from app.domain.audio import DownloadedAudio, Transcript, TranscriptSegment
-from app.domain.entities import AnalysisResultInput, MetricScoreInput
+from app.domain.entities import AnalysisResultInput, PronunciationAssessment
 from app.domain.errors import AnalysisError
 from app.infrastructure.audio.normalizer import FfmpegAudioNormalizer
 from app.infrastructure.audio.transcriber import FasterWhisperTranscriber
@@ -69,8 +69,13 @@ class _FailingSpeechTranscriber:
 
 
 class _FakePronunciationAssessor:
-    def assess(self, calc_input) -> MetricScoreInput:
-        return MetricScoreInput(metric_code="PRONUNCIATION", score=80, details={"provider": "fake"})
+    def assess(self, *, audio_path, calc_input, language) -> PronunciationAssessment:
+        return PronunciationAssessment(provider="fake", pronunciation_score=80)
+
+
+class _FailingPronunciationAssessor:
+    def assess(self, *, audio_path, calc_input, language) -> PronunciationAssessment:
+        raise AnalysisError(code="PRONUNCIATION_PROVIDER_FAILED", message="boom", retryable=True)
 
 
 def _transcript() -> Transcript:
@@ -88,7 +93,7 @@ def _transcript() -> Transcript:
 
 class TestAnalysisUseCaseFakeProviders:
     def _use_case(
-        self, *, tmp_path: Path, storage=None, normalizer=None, transcriber=None
+        self, *, tmp_path: Path, storage=None, normalizer=None, transcriber=None, pronunciation_assessor=None
     ) -> tuple[AnalysisUseCase, Path, Path]:
         downloaded_path = tmp_path / "downloaded.bin"
         normalized_path = tmp_path / "normalized.wav"
@@ -96,7 +101,7 @@ class TestAnalysisUseCaseFakeProviders:
             audio_storage=storage or _FakeAudioStorage(downloaded_path),
             audio_normalizer=normalizer or _FakeAudioNormalizer(normalized_path),
             speech_transcriber=transcriber or _FakeSpeechTranscriber(_transcript()),
-            pronunciation_assessor=_FakePronunciationAssessor(),
+            pronunciation_assessor=pronunciation_assessor or _FakePronunciationAssessor(),
             pipeline_version="audio-pipeline-v1",
         )
         return use_case, downloaded_path, normalized_path
@@ -155,6 +160,33 @@ class TestAnalysisUseCaseFakeProviders:
         assert exc_info.value.code == "STT_FAILED"
         assert not downloaded_path.exists()
         assert not normalized_path.exists()
+
+    def test_run_cleans_up_normalized_file_when_pronunciation_assessment_fails(self, tmp_path: Path):
+        use_case, downloaded_path, normalized_path = self._use_case(
+            tmp_path=tmp_path, pronunciation_assessor=_FailingPronunciationAssessor()
+        )
+
+        with pytest.raises(AnalysisError) as exc_info:
+            use_case.run(audio_object_key="sessions/x/y.wav", analysis_version="v1")
+
+        assert exc_info.value.code == "PRONUNCIATION_PROVIDER_FAILED"
+        assert not downloaded_path.exists()
+        assert not normalized_path.exists()
+
+    def test_run_uses_external_fluency_score_when_provided(self, tmp_path: Path):
+        class _FluencyOverridingAssessor:
+            def assess(self, *, audio_path, calc_input, language) -> PronunciationAssessment:
+                return PronunciationAssessment(provider="azure", pronunciation_score=90, fluency_score=42)
+
+        use_case, _, _ = self._use_case(
+            tmp_path=tmp_path, pronunciation_assessor=_FluencyOverridingAssessor()
+        )
+
+        result = use_case.run(audio_object_key="sessions/x/y.wav", analysis_version="v1")
+
+        fluency = next(m for m in result.metric_scores if m.metric_code == "FLUENCY")
+        assert fluency.score == 42
+        assert fluency.details == {"provider": "azure"}
 
 
 class _LocalFileAudioStorage:
