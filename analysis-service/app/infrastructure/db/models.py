@@ -45,14 +45,15 @@ class AnalysisJob(Base):
         Index("idx_analysis_jobs_session_created", "session_id", "created_at"),
         Index("idx_analysis_jobs_user_created", "user_id", "created_at"),
         Index(
-            "idx_analysis_jobs_pending",
-            "status",
+            "idx_analysis_jobs_claim",
             "created_at",
-            postgresql_where=text("status IN ('queued', 'processing')"),
+            "id",
+            postgresql_where=text("status = 'queued'"),
         ),
         Index(
-            "idx_analysis_jobs_lease",
+            "idx_analysis_jobs_expired_lease",
             "lease_expires_at",
+            "id",
             postgresql_where=text("status = 'processing'"),
         ),
         Index(

@@ -12,6 +12,7 @@ from app.domain.repositories import JobRepository
 logger = logging.getLogger(__name__)
 
 AnalysisRunner = Callable[..., None]
+AnalysisBoundaryObserver = Callable[[str], None]
 
 
 def _stub_run_analysis(*, audio_object_key: str, analysis_version: str) -> None:
@@ -28,12 +29,14 @@ class Dispatcher:
         worker_poll_interval_seconds: float,
         lease_heartbeat_interval_seconds: float,
         analysis_runner: AnalysisRunner = _stub_run_analysis,
+        analysis_boundary_observer: AnalysisBoundaryObserver | None = None,
     ) -> None:
         self._jobs = job_repository
         self._lease_duration_seconds = lease_duration_seconds
         self._worker_poll_interval_seconds = worker_poll_interval_seconds
         self._lease_heartbeat_interval_seconds = lease_heartbeat_interval_seconds
         self._analysis_runner = analysis_runner
+        self._analysis_boundary_observer = analysis_boundary_observer
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -74,17 +77,21 @@ class Dispatcher:
         heartbeat_interval = max(0.1, min(heartbeat_interval_seconds, lease_duration_seconds / 3))
 
         try:
-            with LeaseHeartbeat(
-                job_repository=self._jobs,
-                job_id=claim.id,
-                lease_token=claim.lease_token,
-                lease_duration_seconds=lease_duration_seconds,
-                interval_seconds=heartbeat_interval,
-            ) as heartbeat:
-                self._analysis_runner(
-                    audio_object_key=claim.audio_object_key,
-                    analysis_version=claim.analysis_version,
-                )
+            self._observe_analysis_boundary("before_analysis")
+            try:
+                with LeaseHeartbeat(
+                    job_repository=self._jobs,
+                    job_id=claim.id,
+                    lease_token=claim.lease_token,
+                    lease_duration_seconds=lease_duration_seconds,
+                    interval_seconds=heartbeat_interval,
+                ) as heartbeat:
+                    self._analysis_runner(
+                        audio_object_key=claim.audio_object_key,
+                        analysis_version=claim.analysis_version,
+                    )
+            finally:
+                self._observe_analysis_boundary("after_analysis")
         except AnalysisError as exc:
             owned = self._jobs.fail_job(
                 claim.id,
@@ -122,3 +129,11 @@ class Dispatcher:
         else:
             logger.warning("discarded stale result job=%s", claim.id)
         return True
+
+    def _observe_analysis_boundary(self, event: str) -> None:
+        if self._analysis_boundary_observer is None:
+            return
+        try:
+            self._analysis_boundary_observer(event)
+        except Exception:
+            logger.exception("analysis boundary observer failed event=%s", event)

@@ -11,3 +11,7 @@ class AnalysisError(Exception):
 
 class IdempotencyKeyConflictError(ValueError):
     """The same idempotency key was reused for a different request."""
+
+
+class RepositoryTimeoutError(TimeoutError):
+    """A repository operation exhausted its caller-provided time budget."""
