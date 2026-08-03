@@ -54,6 +54,18 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy compose file to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "core-service/docker-compose.prod.yml"
+          target: ${{ env.DEPLOY_PATH }}
+          strip_components: 1
+
       - name: Deploy to EC2 via SSH
         uses: appleboy/ssh-action@v1
         with:
@@ -61,6 +73,7 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            docker network create pitchcoach-net 2>/dev/null || true
             cd ${{ env.DEPLOY_PATH }}
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d
