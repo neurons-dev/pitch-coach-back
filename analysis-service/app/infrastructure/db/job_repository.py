@@ -1,20 +1,27 @@
 from __future__ import annotations
 
+import math
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func, select, update
+from sqlalchemy import case, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import DBAPIError, TimeoutError as SqlAlchemyTimeoutError
+from sqlalchemy.orm import joinedload, selectinload
 
-from app.domain.entities import ClaimedJob, JobCreation, JobCreationDisposition
-from app.domain.errors import IdempotencyKeyConflictError
-from app.infrastructure.db.models import AnalysisJob
-from app.infrastructure.db.session import read_session_scope, transaction_scope
+from app.domain.entities import AnalysisResultInput, ClaimedJob, JobCreation, JobCreationDisposition
+from app.domain.errors import IdempotencyKeyConflictError, RepositoryTimeoutError
+from app.infrastructure.db.models import AnalysisJob, AnalysisMetricScore, AnalysisResult, FeedbackItem
+from app.infrastructure.db.session import DatabaseSessionProvider
 
 _ACTIVE_STATUSES = ("queued", "processing")
 
 
 class SqlAlchemyJobRepository:
+    def __init__(self, *, session_provider: DatabaseSessionProvider) -> None:
+        self._db = session_provider
+
     def create_job(
         self,
         *,
@@ -37,7 +44,7 @@ class SqlAlchemyJobRepository:
             "analysis_version": "v1",
             "status": "queued",
         }
-        with transaction_scope() as session:
+        with self._db.transaction_scope() as session:
             statement = (
                 insert(AnalysisJob)
                 .values(**values)
@@ -85,14 +92,21 @@ class SqlAlchemyJobRepository:
             )
 
     def get_job(self, job_id: uuid.UUID) -> AnalysisJob | None:
-        with read_session_scope() as session:
-            job = session.get(AnalysisJob, job_id)
+        with self._db.read_session_scope() as session:
+            job = session.scalars(
+                select(AnalysisJob)
+                .where(AnalysisJob.id == job_id)
+                .options(
+                    joinedload(AnalysisJob.result).selectinload(AnalysisResult.metric_scores),
+                    joinedload(AnalysisJob.result).selectinload(AnalysisResult.feedback_items),
+                )
+            ).one_or_none()
             if job is not None:
                 session.expunge(job)
             return job
 
     def claim_next_job(self, *, lease_duration_seconds: int) -> ClaimedJob | None:
-        with transaction_scope() as session:
+        with self._db.transaction_scope() as session:
             job = session.scalars(
                 select(AnalysisJob)
                 .where(AnalysisJob.status == "queued")
@@ -136,7 +150,7 @@ class SqlAlchemyJobRepository:
     def renew_lease(
         self, job_id: uuid.UUID, *, lease_token: uuid.UUID, lease_duration_seconds: int
     ) -> bool:
-        with transaction_scope() as session:
+        with self._db.transaction_scope() as session:
             result = session.execute(
                 update(AnalysisJob)
                 .where(AnalysisJob.id == job_id)
@@ -151,7 +165,7 @@ class SqlAlchemyJobRepository:
             return result.rowcount > 0
 
     def complete_job(self, job_id: uuid.UUID, *, lease_token: uuid.UUID) -> bool:
-        with transaction_scope() as session:
+        with self._db.transaction_scope() as session:
             result = session.execute(
                 update(AnalysisJob)
                 .where(AnalysisJob.id == job_id)
@@ -169,6 +183,68 @@ class SqlAlchemyJobRepository:
             )
             return result.rowcount > 0
 
+    def save_result_and_complete(
+        self,
+        job_id: uuid.UUID,
+        *,
+        lease_token: uuid.UUID,
+        result: AnalysisResultInput,
+    ) -> bool:
+        with self._db.transaction_scope() as session:
+            job = session.scalars(
+                select(AnalysisJob)
+                .where(AnalysisJob.id == job_id)
+                .where(AnalysisJob.status == "processing")
+                .where(AnalysisJob.lease_token == lease_token)
+                .with_for_update()
+            ).one_or_none()
+            if job is None:
+                return False
+
+            job.result = AnalysisResult(
+                overall_score=result.overall_score,
+                coach_comment=result.coach_comment,
+                transcript_text=result.transcript_text,
+                transcript_segments=result.transcript_segments,
+                total_speech_ms=result.total_speech_ms,
+                total_silence_ms=result.total_silence_ms,
+                pipeline_version=result.pipeline_version,
+                stt_model_version=result.stt_model_version,
+                scoring_rule_version=result.scoring_rule_version,
+                model_info=result.model_info,
+                metric_scores=[
+                    AnalysisMetricScore(
+                        metric_code=metric.metric_code,
+                        score=metric.score,
+                        raw_value=metric.raw_value,
+                        unit=metric.unit,
+                        details=metric.details,
+                    )
+                    for metric in result.metric_scores
+                ],
+                feedback_items=[
+                    FeedbackItem(
+                        metric_code=item.metric_code,
+                        item_type=item.item_type,
+                        title=item.title,
+                        description=item.description,
+                        evidence=item.evidence,
+                        sort_order=item.sort_order,
+                    )
+                    for item in result.feedback_items
+                ],
+            )
+
+            now = datetime.now(timezone.utc)
+            job.status = "completed"
+            job.current_stage = "DONE"
+            job.progress_percent = 100
+            job.completed_at = now
+            job.lease_token = None
+            job.lease_expires_at = None
+            job.updated_at = now
+            return True
+
     def fail_job(
         self,
         job_id: uuid.UUID,
@@ -178,7 +254,7 @@ class SqlAlchemyJobRepository:
         message: str,
         retryable: bool,
     ) -> bool:
-        with transaction_scope() as session:
+        with self._db.transaction_scope() as session:
             job = session.scalars(
                 select(AnalysisJob)
                 .where(AnalysisJob.id == job_id)
@@ -206,33 +282,89 @@ class SqlAlchemyJobRepository:
                 job.completed_at = now
             return True
 
-    def requeue_expired_leases(self, *, batch_size: int = 100) -> int:
-        with transaction_scope() as session:
-            now = datetime.now(timezone.utc)
-            stuck_jobs = session.scalars(
-                select(AnalysisJob)
-                .where(AnalysisJob.status == "processing")
-                .where(AnalysisJob.lease_expires_at < func.clock_timestamp())
-                .order_by(AnalysisJob.lease_expires_at, AnalysisJob.id)
-                .limit(batch_size)
-                .with_for_update(skip_locked=True)
-            ).all()
+    def requeue_expired_leases(
+        self,
+        *,
+        batch_size: int = 100,
+        timeout_seconds: float | None = None,
+    ) -> int:
+        operation_started_at = time.monotonic()
+        try:
+            with self._db.transaction_scope() as session:
+                if timeout_seconds is not None:
+                    session.connection()
+                    remaining_seconds = timeout_seconds - (
+                        time.monotonic() - operation_started_at
+                    )
+                    if remaining_seconds <= 0:
+                        raise RepositoryTimeoutError(
+                            "requeue operation exhausted its time budget "
+                            "while acquiring a database connection"
+                        )
+                    statement_timeout_ms = max(
+                        1,
+                        math.ceil(remaining_seconds * 1000),
+                    )
+                    session.execute(
+                        text(
+                            "SELECT set_config("
+                            "'statement_timeout', :statement_timeout, true)"
+                        ),
+                        {"statement_timeout": f"{statement_timeout_ms}ms"},
+                    )
 
-            for job in stuck_jobs:
-                job.lease_token = None
-                job.lease_expires_at = None
-                job.updated_at = now
-                if job.retry_count < job.max_retries:
-                    job.retry_count += 1
-                    job.status = "queued"
-                    job.current_stage = "REQUEUED_AFTER_LEASE_EXPIRY"
-                    job.error_code = None
-                    job.error_message = None
-                else:
-                    job.status = "failed"
-                    job.current_stage = "FAILED"
-                    job.error_code = "LEASE_EXPIRED_RETRY_EXHAUSTED"
-                    job.error_message = "Worker lease expired and the retry budget was exhausted."
-                    job.completed_at = now
-
-            return len(stuck_jobs)
+                expired_jobs = (
+                    select(AnalysisJob.id)
+                    .where(AnalysisJob.status == "processing")
+                    .where(
+                        AnalysisJob.lease_expires_at
+                        < func.statement_timestamp()
+                    )
+                    .order_by(AnalysisJob.lease_expires_at, AnalysisJob.id)
+                    .limit(batch_size)
+                    .with_for_update(skip_locked=True)
+                    .cte("expired_jobs")
+                )
+                retryable = AnalysisJob.retry_count < AnalysisJob.max_retries
+                requeued_ids = session.scalars(
+                    update(AnalysisJob)
+                    .where(AnalysisJob.id.in_(select(expired_jobs.c.id)))
+                    .values(
+                        lease_token=None,
+                        lease_expires_at=None,
+                        updated_at=func.clock_timestamp(),
+                        retry_count=case(
+                            (retryable, AnalysisJob.retry_count + 1),
+                            else_=AnalysisJob.retry_count,
+                        ),
+                        status=case((retryable, "queued"), else_="failed"),
+                        current_stage=case(
+                            (retryable, "REQUEUED_AFTER_LEASE_EXPIRY"),
+                            else_="FAILED",
+                        ),
+                        error_code=case(
+                            (retryable, None),
+                            else_="LEASE_EXPIRED_RETRY_EXHAUSTED",
+                        ),
+                        error_message=case(
+                            (retryable, None),
+                            else_="Worker lease expired and the retry budget was exhausted.",
+                        ),
+                        completed_at=case(
+                            (retryable, AnalysisJob.completed_at),
+                            else_=func.clock_timestamp(),
+                        ),
+                    )
+                    .returning(AnalysisJob.id)
+                ).all()
+                return len(requeued_ids)
+        except SqlAlchemyTimeoutError as exc:
+            raise RepositoryTimeoutError(
+                "requeue operation timed out while acquiring a database connection"
+            ) from exc
+        except DBAPIError as exc:
+            if getattr(exc.orig, "sqlstate", None) == "57014":
+                raise RepositoryTimeoutError(
+                    "requeue operation exceeded its statement timeout"
+                ) from exc
+            raise

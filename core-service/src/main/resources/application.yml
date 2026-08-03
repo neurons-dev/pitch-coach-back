@@ -20,6 +20,11 @@ spring:
   flyway:
     enabled: false
 
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
   security:
     oauth2:
       client:
@@ -63,3 +68,14 @@ jwt:
 app:
   frontend:
     oauth-redirect-base: ${FRONTEND_OAUTH_REDIRECT_BASE:http://localhost:3000/oauth/callback}
+
+aws:
+  region: ${AWS_REGION:ap-northeast-2}
+  s3:
+    bucket: ${AWS_S3_BUCKET}
+
+analysis-service:
+  base-url: ${ANALYSIS_SERVICE_BASE_URL:http://localhost:8000}
+  internal-token: ${ANALYSIS_SERVICE_INTERNAL_TOKEN}
+  connect-timeout-ms: 3000
+  read-timeout-ms: 10000

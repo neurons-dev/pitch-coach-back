@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from typing import Protocol
 
-from app.domain.entities import AnalysisJobLike, ClaimedJob, JobCreation
+from app.domain.entities import AnalysisJobLike, AnalysisResultInput, ClaimedJob, JobCreation
 
 
 class JobRepository(Protocol):
@@ -29,6 +29,14 @@ class JobRepository(Protocol):
 
     def complete_job(self, job_id: uuid.UUID, *, lease_token: uuid.UUID) -> bool: ...
 
+    def save_result_and_complete(
+        self,
+        job_id: uuid.UUID,
+        *,
+        lease_token: uuid.UUID,
+        result: AnalysisResultInput,
+    ) -> bool: ...
+
     def fail_job(
         self,
         job_id: uuid.UUID,
@@ -39,4 +47,9 @@ class JobRepository(Protocol):
         retryable: bool,
     ) -> bool: ...
 
-    def requeue_expired_leases(self, *, batch_size: int = 100) -> int: ...
+    def requeue_expired_leases(
+        self,
+        *,
+        batch_size: int = 100,
+        timeout_seconds: float | None = None,
+    ) -> int: ...

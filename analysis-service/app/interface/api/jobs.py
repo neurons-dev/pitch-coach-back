@@ -17,6 +17,9 @@ from app.interface.schemas.jobs import (
     AnalysisJobCreateRequest,
     AnalysisJobCreateResponse,
     AnalysisJobStatusResponse,
+    AnalysisResultOut,
+    FeedbackItemOut,
+    MetricScoreOut,
 )
 
 router = APIRouter(
@@ -112,6 +115,32 @@ def get_analysis_job(
 
 
 def _to_status_response(job: AnalysisJobLike) -> AnalysisJobStatusResponse:
+    result_out = None
+    if job.result is not None:
+        result_out = AnalysisResultOut(
+            overall_score=job.result.overall_score,
+            coach_comment=job.result.coach_comment,
+            metric_scores=[
+                MetricScoreOut(
+                    metric_code=metric.metric_code,
+                    score=metric.score,
+                    raw_value=metric.raw_value,
+                    unit=metric.unit,
+                )
+                for metric in job.result.metric_scores
+            ],
+            feedback_items=[
+                FeedbackItemOut(
+                    item_type=item.item_type,
+                    title=item.title,
+                    description=item.description,
+                    metric_code=item.metric_code,
+                    sort_order=item.sort_order,
+                )
+                for item in job.result.feedback_items
+            ],
+        )
+
     return AnalysisJobStatusResponse(
         analysis_job_id=job.id,
         status=job.status,
@@ -119,4 +148,5 @@ def _to_status_response(job: AnalysisJobLike) -> AnalysisJobStatusResponse:
         progress_percent=job.progress_percent,
         error_code=job.error_code,
         error_message=job.error_message,
+        result=result_out,
     )
