@@ -6,3 +6,9 @@ services:
     env_file:
       - .env
     restart: unless-stopped
+    networks:
+      - pitchcoach-net
+
+networks:
+  pitchcoach-net:
+    external: true
