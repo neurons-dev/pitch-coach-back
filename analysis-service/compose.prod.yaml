@@ -9,6 +9,8 @@ services:
     environment:
       APP_ENVIRONMENT: production
     restart: unless-stopped
+    networks:
+      - pitchcoach-net
 
   analysis-worker:
     image: ${ECR_REGISTRY}/pitch-coach/analysis-service:latest
@@ -18,3 +20,9 @@ services:
     environment:
       APP_ENVIRONMENT: production
     restart: unless-stopped
+    networks:
+      - pitchcoach-net
+
+networks:
+  pitchcoach-net:
+    external: true
