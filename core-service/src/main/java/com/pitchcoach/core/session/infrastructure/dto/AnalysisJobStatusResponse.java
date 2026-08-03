@@ -8,5 +8,6 @@ public record AnalysisJobStatusResponse(
         String currentStage,
         Integer progressPercent,
         String errorCode,
-        String errorMessage
+        String errorMessage,
+        AnalysisJobResultDto result
 ) {}

@@ -62,6 +62,9 @@ public class PracticeSession {
     @Column(name = "analysis_completed_at")
     private LocalDateTime analysisCompletedAt;
 
+    @Column(name = "overall_score")
+    private Short overallScore;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -125,5 +128,13 @@ public class PracticeSession {
         this.status = PracticeSessionStatus.FAILED;
         this.failureReason = reason;
         this.analysisCompletedAt = LocalDateTime.now();
+    }
+
+    public boolean isAnalysisCompleted() {
+        return status == PracticeSessionStatus.COMPLETED;
+    }
+
+    public void updateOverallScore(short overallScore) {
+        this.overallScore = overallScore;
     }
 }

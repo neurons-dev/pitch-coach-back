@@ -43,7 +43,12 @@ public class GetAnalysisStatusService {
             return;
         }
         switch (jobStatus.status()) {
-            case "completed" -> session.completeAnalysis();
+            case "completed" -> {
+                session.completeAnalysis();
+                if (jobStatus.result() != null) {
+                    session.updateOverallScore((short) jobStatus.result().overallScore());
+                }
+            }
             case "failed", "cancelled" -> session.failAnalysis(jobStatus.errorMessage());
             default -> { }
         }

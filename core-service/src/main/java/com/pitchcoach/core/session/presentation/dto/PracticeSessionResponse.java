@@ -18,6 +18,7 @@ public record PracticeSessionResponse(
         UUID latestAnalysisJobId,
         String failureReason,
         LocalDateTime analysisCompletedAt,
+        Short overallScore,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
@@ -35,6 +36,7 @@ public record PracticeSessionResponse(
                 session.getLatestAnalysisJobId(),
                 session.getFailureReason(),
                 session.getAnalysisCompletedAt(),
+                session.getOverallScore(),
                 session.getCreatedAt(),
                 session.getUpdatedAt()
         );

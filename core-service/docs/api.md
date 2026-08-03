@@ -252,6 +252,7 @@ POST /api/practice-sessions
   "latestAnalysisJobId": null,
   "failureReason": null,
   "analysisCompletedAt": null,
+  "overallScore": null,
   "createdAt": "2026-07-30T12:00:00",
   "updatedAt": "2026-07-30T12:00:00"
 }
@@ -352,6 +353,7 @@ Content-Type: multipart/form-data
   "latestAnalysisJobId": null,
   "failureReason": null,
   "analysisCompletedAt": null,
+  "overallScore": null,
   "createdAt": "2026-07-30T12:00:00",
   "updatedAt": "2026-07-30T12:05:00"
 }
@@ -397,6 +399,7 @@ POST /api/practice-sessions/{sessionId}/analysis
   "latestAnalysisJobId": "9c6b6e2a-1f3a-4b0a-9d3a-2f7e6a1c5b90",
   "failureReason": null,
   "analysisCompletedAt": null,
+  "overallScore": null,
   "createdAt": "2026-07-30T12:00:00",
   "updatedAt": "2026-07-30T12:06:00"
 }
@@ -450,6 +453,52 @@ GET /api/analyses/{analysisJobId}/status
 
 ---
 
+### 분석 결과 조회
+
+```
+GET /api/analyses/{analysisJobId}/result
+```
+
+분석 결과(종합 점수, 코치 코멘트, 지표별 점수, 피드백)를 조회합니다. 조회 시 `practice_sessions.overall_score`/`status`가 함께 갱신됩니다.
+
+내부적으로는 analysis-service의 `GET /internal/v1/analysis-jobs/{id}` 응답에 담긴 `result` 필드(완료 전엔 `null`)를 그대로 사용합니다 — 별도의 결과 전용 API가 있는 게 아니라, 분석 요청 상태 조회 API 하나에 결과가 함께 내려옵니다. 판단 기준은 로컬에 캐시된 세션 상태가 아니라 **매 요청마다 analysis-service에 직접 물어보는 실시간 상태**라서, `/status`를 먼저 폴링하지 않고 바로 `/result`를 호출해도 정상 동작합니다.
+
+**Path Parameter**
+
+| 이름 | 타입 | 설명 |
+|---|---|---|
+| analysisJobId | UUID | 분석 작업 id |
+
+**Response** `200 OK`
+
+```json
+{
+  "practiceSessionId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "analysisJobId": "9c6b6e2a-1f3a-4b0a-9d3a-2f7e6a1c5b90",
+  "overallScore": 82,
+  "coachComment": "전반적으로 안정적인 발표였습니다...",
+  "metricScores": [
+    { "metricCode": "SPEED", "score": 80, "rawValue": 145.2, "unit": "wpm" },
+    { "metricCode": "PRONUNCIATION", "score": 85, "rawValue": null, "unit": null },
+    { "metricCode": "DELIVERY", "score": 78, "rawValue": null, "unit": null },
+    { "metricCode": "STRUCTURE", "score": 88, "rawValue": null, "unit": null },
+    { "metricCode": "FLUENCY", "score": 79, "rawValue": null, "unit": null }
+  ],
+  "feedbackItems": [
+    { "metricCode": null, "itemType": "summary", "title": "전체 요약", "description": "..." },
+    { "metricCode": "SPEED", "itemType": "improvement", "title": "말하기 속도 개선", "description": "..." }
+  ]
+}
+```
+
+**에러**
+- `404` — 분석 작업이 존재하지 않거나 본인 소유가 아님
+- `409` — 아직 분석이 진행 중이거나(`queued`/`processing`), 분석이 실패함(`failed`/`cancelled`) — 메시지로 구분됨
+- `401` — 인증 실패
+- `502` — analysis-service 호출 실패
+
+---
+
 ## 상태 값 참고
 
 `practiceSessions.status`
@@ -459,7 +508,7 @@ GET /api/analyses/{analysisJobId}/status
 | `CREATED` | 세션 생성됨, 음성 미업로드 |
 | `UPLOADED` | 음성 업로드 완료 |
 | `ANALYSIS_REQUESTED` | 분석 요청됨, 진행 중 |
-| `COMPLETED` | 분석 완료 (점수·피드백 조회 API는 구현 예정) |
+| `COMPLETED` | 분석 완료. `GET /api/analyses/{id}/result`로 점수·피드백 조회 가능 |
 | `FAILED` | 분석 실패 (`failureReason` 참고) |
 
 `practiceTypeCode`
