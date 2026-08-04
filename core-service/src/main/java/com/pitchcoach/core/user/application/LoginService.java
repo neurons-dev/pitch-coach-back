@@ -9,8 +9,8 @@ import com.pitchcoach.core.user.domain.User;
 import com.pitchcoach.core.user.infrastructure.LocalCredentialJpaRepository;
 import com.pitchcoach.core.user.infrastructure.RefreshTokenJpaRepository;
 import com.pitchcoach.core.user.infrastructure.UserJpaRepository;
+import com.pitchcoach.core.user.presentation.dto.AuthResponse;
 import com.pitchcoach.core.user.presentation.dto.LoginRequest;
-import com.pitchcoach.core.user.presentation.dto.TokenResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -31,7 +31,7 @@ public class LoginService {
     private final RefreshTokenGenerator refreshTokenGenerator;
 
     @Transactional
-    public TokenResponse login(LoginRequest request) {
+    public AuthResponse login(LoginRequest request) {
         User user = userJpaRepository.findByEmailIgnoreCase(request.email())
                 .orElseThrow(InvalidCredentialsException::new);
 
@@ -55,6 +55,6 @@ public class LoginService {
         );
         refreshTokenJpaRepository.save(refreshToken);
 
-        return new TokenResponse(accessToken, rawRefreshToken);
+        return new AuthResponse(user.getId(), user.getNickname(), user.getEmail(), accessToken, rawRefreshToken);
     }
 }

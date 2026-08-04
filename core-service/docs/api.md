@@ -43,7 +43,7 @@
 POST /api/auth/signup
 ```
 
-로컬 계정(이메일/비밀번호)으로 회원가입합니다.
+로컬 계정(이메일/비밀번호)으로 회원가입하고 accessToken/refreshToken을 즉시 발급받습니다.
 
 **Request Body**
 
@@ -61,10 +61,19 @@ POST /api/auth/signup
 }
 ```
 
-**Response**
+**Response** `201 Created`
 
-- `201 Created`, Body 없음
 - `Location: /api/users/{userId}`
+
+```json
+{
+  "userId": 1,
+  "name": "닉네임",
+  "email": "user@example.com",
+  "accessToken": "eyJhbGciOi...",
+  "refreshToken": "raw-refresh-token"
+}
+```
 
 **에러**
 - `409` — 이미 사용 중인 이메일
@@ -90,6 +99,9 @@ POST /api/auth/login
 
 ```json
 {
+  "userId": 1,
+  "name": "닉네임",
+  "email": "user@example.com",
   "accessToken": "eyJhbGciOi...",
   "refreshToken": "raw-refresh-token"
 }
@@ -128,7 +140,7 @@ POST /api/auth/oauth/exchange
 |---|---|---|
 | code | string | 필수, 소셜 로그인 리다이렉트로 받은 1회용 코드 |
 
-**Response** `200 OK` — 로그인과 동일한 `TokenResponse`
+**Response** `200 OK` — 회원가입/로그인과 동일한 `AuthResponse` (userId/name/email/accessToken/refreshToken)
 
 ---
 

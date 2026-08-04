@@ -8,7 +8,7 @@ import com.pitchcoach.core.user.domain.RefreshToken;
 import com.pitchcoach.core.user.domain.User;
 import com.pitchcoach.core.user.infrastructure.RefreshTokenJpaRepository;
 import com.pitchcoach.core.user.infrastructure.UserJpaRepository;
-import com.pitchcoach.core.user.presentation.dto.TokenResponse;
+import com.pitchcoach.core.user.presentation.dto.AuthResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,7 +29,7 @@ public class OAuthExchangeService {
     private final RefreshTokenGenerator refreshTokenGenerator;
 
     @Transactional
-    public TokenResponse exchange(String code) {
+    public AuthResponse exchange(String code) {
         Long userId = oAuthLoginCodeStore.consume(code)
                 .orElseThrow(() -> new InvalidTokenException(INVALID_CODE_MESSAGE));
 
@@ -49,6 +49,6 @@ public class OAuthExchangeService {
         );
         refreshTokenJpaRepository.save(refreshToken);
 
-        return new TokenResponse(accessToken, rawRefreshToken);
+        return new AuthResponse(user.getId(), user.getNickname(), user.getEmail(), accessToken, rawRefreshToken);
     }
 }
