@@ -429,6 +429,41 @@ POST /api/practice-sessions/{sessionId}/analysis
 
 > 인증 필요 (`Authorization: Bearer {accessToken}`)
 
+### 최근 분석 결과 조회
+
+```
+GET /api/analyses/recent
+```
+
+본인 소유 세션 중 분석이 완료된(`status: COMPLETED`) 것만 `analysisCompletedAt` 최신순으로 조회합니다.
+
+**Query Parameter**
+
+| 이름 | 타입 | 설명 |
+|---|---|---|
+| limit | int | 선택, 기본값 4, 1 이상 |
+
+**Response** `200 OK`
+
+```json
+[
+  {
+    "analysisId": "9c6b6e2a-1f3a-4b0a-9d3a-2f7e6a1c5b90",
+    "title": "취업 면접 연습",
+    "createdAt": "2026-08-01T10:00:00",
+    "durationSeconds": 125,
+    "totalScore": 82
+  }
+]
+```
+
+`analysisId`는 `latestAnalysisJobId` 값으로, 분석 상태/결과 조회 API의 `{analysisJobId}` 경로 값과 동일합니다.
+
+**에러**
+- `401` — 인증 실패
+
+---
+
 ### 분석 진행 상태 조회
 
 ```
