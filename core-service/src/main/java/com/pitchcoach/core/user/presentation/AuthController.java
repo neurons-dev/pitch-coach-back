@@ -27,23 +27,23 @@ public class AuthController {
     private final LogoutService logoutService;
     private final OAuthExchangeService oAuthExchangeService;
 
-    @Operation(summary = "회원가입", description = "로컬 계정으로 회원가입합니다. 응답 Location 헤더에 생성된 유저 리소스 경로가 담깁니다.")
+    @Operation(summary = "회원가입", description = "로컬 계정으로 회원가입하고 accessToken/refreshToken을 즉시 발급받습니다. 응답 Location 헤더에 생성된 유저 리소스 경로가 담깁니다.")
     @PostMapping("/signup")
-    public ResponseEntity<Void> signUp(@Valid @RequestBody SignUpRequest request) {
-        Long userId = signUpService.signUp(request);
-        return ResponseEntity.created(URI.create("/api/users/" + userId)).build();
+    public ResponseEntity<AuthResponse> signUp(@Valid @RequestBody SignUpRequest request) {
+        AuthResponse response = signUpService.signUp(request);
+        return ResponseEntity.created(URI.create("/api/users/" + response.userId())).body(response);
     }
 
     @Operation(summary = "로그인", description = "로컬 계정 이메일/비밀번호로 로그인하고 accessToken/refreshToken을 발급받습니다.")
     @PostMapping("/login")
-    public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(loginService.login(request));
     }
 
     @Operation(summary = "소셜 로그인 코드 교환",
             description = "소셜 로그인 성공 후 리다이렉트로 받은 1회용 code(60초 내 사용)를 실제 accessToken/refreshToken으로 교환합니다.")
     @PostMapping("/oauth/exchange")
-    public ResponseEntity<TokenResponse> exchangeOAuthCode(@Valid @RequestBody OAuthExchangeRequest request) {
+    public ResponseEntity<AuthResponse> exchangeOAuthCode(@Valid @RequestBody OAuthExchangeRequest request) {
         return ResponseEntity.ok(oAuthExchangeService.exchange(request.code()));
     }
 

@@ -70,5 +70,5 @@ jobs:
             docker network create pitchcoach-net 2>/dev/null || true
             cd ${{ env.DEPLOY_PATH }}
             docker compose -f compose.prod.yaml pull
-            docker compose -f compose.prod.yaml up -d
+            docker compose -f compose.prod.yaml up -d --force-recreate
             docker image prune -f

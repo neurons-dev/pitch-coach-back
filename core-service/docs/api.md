@@ -43,7 +43,7 @@
 POST /api/auth/signup
 ```
 
-로컬 계정(이메일/비밀번호)으로 회원가입합니다.
+로컬 계정(이메일/비밀번호)으로 회원가입하고 accessToken/refreshToken을 즉시 발급받습니다.
 
 **Request Body**
 
@@ -61,10 +61,19 @@ POST /api/auth/signup
 }
 ```
 
-**Response**
+**Response** `201 Created`
 
-- `201 Created`, Body 없음
 - `Location: /api/users/{userId}`
+
+```json
+{
+  "userId": 1,
+  "name": "닉네임",
+  "email": "user@example.com",
+  "accessToken": "eyJhbGciOi...",
+  "refreshToken": "raw-refresh-token"
+}
+```
 
 **에러**
 - `409` — 이미 사용 중인 이메일
@@ -90,6 +99,9 @@ POST /api/auth/login
 
 ```json
 {
+  "userId": 1,
+  "name": "닉네임",
+  "email": "user@example.com",
   "accessToken": "eyJhbGciOi...",
   "refreshToken": "raw-refresh-token"
 }
@@ -128,7 +140,7 @@ POST /api/auth/oauth/exchange
 |---|---|---|
 | code | string | 필수, 소셜 로그인 리다이렉트로 받은 1회용 코드 |
 
-**Response** `200 OK` — 로그인과 동일한 `TokenResponse`
+**Response** `200 OK` — 회원가입/로그인과 동일한 `AuthResponse` (userId/name/email/accessToken/refreshToken)
 
 ---
 
@@ -417,6 +429,41 @@ POST /api/practice-sessions/{sessionId}/analysis
 
 > 인증 필요 (`Authorization: Bearer {accessToken}`)
 
+### 최근 분석 결과 조회
+
+```
+GET /api/analyses/recent
+```
+
+본인 소유 세션 중 분석이 완료된(`status: COMPLETED`) 것만 `analysisCompletedAt` 최신순으로 조회합니다.
+
+**Query Parameter**
+
+| 이름 | 타입 | 설명 |
+|---|---|---|
+| limit | int | 선택, 기본값 4, 1 이상 |
+
+**Response** `200 OK`
+
+```json
+[
+  {
+    "analysisId": "9c6b6e2a-1f3a-4b0a-9d3a-2f7e6a1c5b90",
+    "title": "취업 면접 연습",
+    "createdAt": "2026-08-01T10:00:00",
+    "durationSeconds": 125,
+    "totalScore": 82
+  }
+]
+```
+
+`analysisId`는 `latestAnalysisJobId` 값으로, 분석 상태/결과 조회 API의 `{analysisJobId}` 경로 값과 동일합니다.
+
+**에러**
+- `401` — 인증 실패
+
+---
+
 ### 분석 진행 상태 조회
 
 ```
@@ -438,8 +485,8 @@ GET /api/analyses/{analysisJobId}/status
   "practiceSessionId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
   "analysisJobId": "9c6b6e2a-1f3a-4b0a-9d3a-2f7e6a1c5b90",
   "status": "processing",
-  "currentStage": "stt",
-  "progressPercent": 40,
+  "currentStep": "stt",
+  "progress": 40,
   "errorMessage": null
 }
 ```
@@ -477,19 +524,18 @@ GET /api/analyses/{analysisJobId}/result
   "analysisJobId": "9c6b6e2a-1f3a-4b0a-9d3a-2f7e6a1c5b90",
   "overallScore": 82,
   "coachComment": "전반적으로 안정적인 발표였습니다...",
-  "metricScores": [
-    { "metricCode": "SPEED", "score": 80, "rawValue": 145.2, "unit": "wpm" },
-    { "metricCode": "PRONUNCIATION", "score": 85, "rawValue": null, "unit": null },
-    { "metricCode": "DELIVERY", "score": 78, "rawValue": null, "unit": null },
-    { "metricCode": "STRUCTURE", "score": 88, "rawValue": null, "unit": null },
-    { "metricCode": "FLUENCY", "score": 79, "rawValue": null, "unit": null }
-  ],
-  "feedbackItems": [
+  "speechRateScore": 80,
+  "fillerWordScore": 79,
+  "structureScore": 88,
+  "deliveryScore": 78,
+  "feedback": [
     { "metricCode": null, "itemType": "summary", "title": "전체 요약", "description": "..." },
     { "metricCode": "SPEED", "itemType": "improvement", "title": "말하기 속도 개선", "description": "..." }
   ]
 }
 ```
+
+`speechRateScore`/`fillerWordScore`/`structureScore`/`deliveryScore`는 analysis-service의 metricScores 중 각각 `SPEED`/`FILLER`/`STRUCTURE`/`DELIVERY` 지표 점수입니다. analysis-service가 해당 지표를 내려주지 않으면 `null`입니다. analysis-service는 이 외에도 `PRONUNCIATION`/`FLUENCY` 지표를 함께 내려줄 수 있지만, 현재 응답에는 포함하지 않습니다.
 
 **에러**
 - `404` — 분석 작업이 존재하지 않거나 본인 소유가 아님

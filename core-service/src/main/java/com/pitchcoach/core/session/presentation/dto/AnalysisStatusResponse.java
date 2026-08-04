@@ -6,7 +6,7 @@ public record AnalysisStatusResponse(
         UUID practiceSessionId,
         UUID analysisJobId,
         String status,
-        String currentStage,
-        Integer progressPercent,
+        String currentStep,
+        Integer progress,
         String errorMessage
 ) {}
