@@ -1,5 +1,6 @@
 package com.pitchcoach.core.common.exception;
 
+import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -104,6 +105,15 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HandlerMethodValidationException.class)
     public ResponseEntity<ErrorResponse> handleMethodValidation(HandlerMethodValidationException e) {
         return ResponseEntity.badRequest().body(ErrorResponse.of("잘못된 요청입니다: " + e.getMessage()));
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ErrorResponse> handleConstraintViolation(ConstraintViolationException e) {
+        String message = e.getConstraintViolations().stream()
+                .findFirst()
+                .map(v -> v.getPropertyPath() + ": " + v.getMessage())
+                .orElse("잘못된 요청입니다.");
+        return ResponseEntity.badRequest().body(ErrorResponse.of(message));
     }
 
     @ExceptionHandler(AnalysisNotFoundException.class)
