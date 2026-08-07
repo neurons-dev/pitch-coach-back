@@ -240,11 +240,13 @@ POST /api/practice-sessions
 |---|---|---|
 | title | string | 필수, 최대 100자 |
 | practiceTypeCode | string | 필수, `INTERVIEW` / `PT` / `SPEECH` 중 하나 (대소문자 무관) |
+| targetDurationSeconds | short | 선택, 목표 발표 시간(초), 1 이상 |
 
 ```json
 {
   "title": "프론트엔드 개발자 모의면접",
-  "practiceTypeCode": "INTERVIEW"
+  "practiceTypeCode": "INTERVIEW",
+  "targetDurationSeconds": 240
 }
 ```
 
@@ -255,6 +257,7 @@ POST /api/practice-sessions
   "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
   "title": "프론트엔드 개발자 모의면접",
   "practiceTypeCode": "INTERVIEW",
+  "targetDurationSeconds": 240,
   "status": "CREATED",
   "audioOriginalName": null,
   "audioContentType": null,
@@ -271,7 +274,7 @@ POST /api/practice-sessions
 ```
 
 **에러**
-- `400` — 존재하지 않거나 비활성화된 `practiceTypeCode`
+- `400` — 존재하지 않거나 비활성화된 `practiceTypeCode`, 또는 `targetDurationSeconds`가 0 이하
 - `401` — 인증 실패
 - `403` — 차단/탈퇴된 사용자
 
@@ -356,6 +359,7 @@ Content-Type: multipart/form-data
   "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
   "title": "프론트엔드 개발자 모의면접",
   "practiceTypeCode": "INTERVIEW",
+  "targetDurationSeconds": 240,
   "status": "UPLOADED",
   "audioOriginalName": "recording.m4a",
   "audioContentType": "audio/x-m4a",
@@ -372,7 +376,7 @@ Content-Type: multipart/form-data
 ```
 
 **에러**
-- `400` — 지원하지 않는 오디오 형식
+- `400` — 지원하지 않는 오디오 형식, 또는 `durationMs`가 0 이하
 - `404` — 세션이 존재하지 않거나 본인 소유가 아님
 - `409` — 현재 세션 상태에서는 업로드 불가 (`UPLOADED`/`ANALYSIS_REQUESTED`/`COMPLETED` 상태)
 - `413` — 파일 크기 초과 (최대 50MB)
@@ -402,6 +406,7 @@ POST /api/practice-sessions/{sessionId}/analysis
   "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
   "title": "프론트엔드 개발자 모의면접",
   "practiceTypeCode": "INTERVIEW",
+  "targetDurationSeconds": 240,
   "status": "ANALYSIS_REQUESTED",
   "audioOriginalName": "recording.m4a",
   "audioContentType": "audio/x-m4a",
@@ -460,6 +465,7 @@ GET /api/analyses/recent
 `analysisId`는 `latestAnalysisJobId` 값으로, 분석 상태/결과 조회 API의 `{analysisJobId}` 경로 값과 동일합니다.
 
 **에러**
+- `400` — `limit`이 1 미만
 - `401` — 인증 실패
 
 ---
