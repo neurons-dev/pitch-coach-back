@@ -31,6 +31,9 @@ public class PracticeSession {
     @Column(nullable = false)
     private String title;
 
+    @Column(name = "target_duration_seconds")
+    private Short targetDurationSeconds;
+
     @Convert(converter = PracticeSessionStatusConverter.class)
     @Column(nullable = false)
     private PracticeSessionStatus status = PracticeSessionStatus.CREATED;
@@ -73,11 +76,12 @@ public class PracticeSession {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    public static PracticeSession create(User user, PracticeType practiceType, String title) {
+    public static PracticeSession create(User user, PracticeType practiceType, String title, Short targetDurationSeconds) {
         PracticeSession session = new PracticeSession();
         session.user = user;
         session.practiceType = practiceType;
         session.title = title;
+        session.targetDurationSeconds = targetDurationSeconds;
         session.status = PracticeSessionStatus.CREATED;
         return session;
     }
