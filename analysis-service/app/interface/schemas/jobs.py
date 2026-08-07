@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import uuid
 
+from pydantic import Field
+
 from app.interface.schemas.common import CamelModel
 
 
 class AnalysisJobCreateRequest(CamelModel):
     session_id: uuid.UUID
     user_id: int
+    title: str = Field(min_length=1, max_length=100, pattern=r".*\S.*")
+    practice_type_code: str = Field(min_length=1, max_length=50, pattern=r".*\S.*")
     audio_object_key: str
     audio_content_type: str | None = None
     audio_size_bytes: int | None = None
@@ -31,6 +35,7 @@ class FeedbackItemOut(CamelModel):
     title: str
     description: str
     metric_code: str | None = None
+    evidence: dict
     sort_order: int
 
 

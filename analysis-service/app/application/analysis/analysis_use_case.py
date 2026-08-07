@@ -7,7 +7,7 @@ from app.domain.entities import (
     MetricScoreInput,
     TranscriptSegmentFeatures,
 )
-from app.domain.feedback import build_coach_comment, build_feedback_items
+from app.domain.feedback_generator import FeedbackGenerator
 from app.domain.metrics import (
     SCORING_RULE_VERSION,
     calc_all_metrics,
@@ -27,6 +27,7 @@ class AnalysisUseCase:
         audio_normalizer: AudioNormalizer,
         speech_transcriber: SpeechTranscriber,
         pronunciation_assessor: PronunciationAssessor,
+        feedback_generator: FeedbackGenerator,
         pipeline_version: str,
         language: str = _DEFAULT_LANGUAGE,
     ) -> None:
@@ -34,10 +35,18 @@ class AnalysisUseCase:
         self._audio_normalizer = audio_normalizer
         self._speech_transcriber = speech_transcriber
         self._pronunciation_assessor = pronunciation_assessor
+        self._feedback_generator = feedback_generator
         self._pipeline_version = pipeline_version
         self._language = language
 
-    def run(self, *, audio_object_key: str, analysis_version: str) -> AnalysisResultInput:
+    def run(
+        self,
+        *,
+        audio_object_key: str,
+        analysis_version: str,
+        presentation_title: str | None = None,
+        practice_type_code: str | None = None,
+    ) -> AnalysisResultInput:
         downloaded = self._audio_storage.download(audio_object_key)
         try:
             normalized_path = self._audio_normalizer.normalize(downloaded.path)
@@ -84,15 +93,20 @@ class AnalysisUseCase:
         metrics = calc_all_metrics(calc_input, pronunciation_metric, fluency_override)
         overall_score = calc_overall_score(metrics)
         total_speech_ms, total_silence_ms = calc_speech_silence_ms(calc_input)
-        coach_comment = build_coach_comment(overall_score, metrics)
-        feedback_items = build_feedback_items(overall_score, coach_comment, metrics)
+        feedback_result = self._feedback_generator.generate(
+            transcript_text=transcript.text,
+            metrics=metrics,
+            overall_score=overall_score,
+            presentation_title=presentation_title,
+            practice_type_code=practice_type_code,
+        )
 
         return AnalysisResultInput(
             overall_score=overall_score,
             pipeline_version=self._pipeline_version,
             stt_model_version=transcript.model_version,
             scoring_rule_version=SCORING_RULE_VERSION,
-            coach_comment=coach_comment,
+            coach_comment=feedback_result.coach_comment,
             transcript_text=transcript.text,
             transcript_segments=[
                 {"startMs": segment.start_ms, "endMs": segment.end_ms, "text": segment.text}
@@ -100,7 +114,14 @@ class AnalysisUseCase:
             ],
             total_speech_ms=total_speech_ms,
             total_silence_ms=total_silence_ms,
-            model_info={"language": transcript.language, "pronunciationProvider": assessment.provider},
+            model_info={
+                "language": transcript.language,
+                "pronunciationProvider": assessment.provider,
+                "feedbackGenerator": feedback_result.generator,
+                "feedbackModel": feedback_result.model,
+                "feedbackPromptVersion": feedback_result.prompt_version,
+                "feedbackFallbackReason": feedback_result.fallback_reason,
+            },
             metric_scores=metrics,
-            feedback_items=feedback_items,
+            feedback_items=feedback_result.feedback_items,
         )

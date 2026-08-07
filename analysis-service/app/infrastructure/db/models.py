@@ -45,6 +45,14 @@ class AnalysisJob(Base):
         CheckConstraint(
             "duration_ms IS NULL OR duration_ms >= 0", name="analysis_jobs_duration_ms_check"
         ),
+        CheckConstraint(
+            "presentation_title IS NULL OR char_length(trim(presentation_title)) > 0",
+            name="analysis_jobs_presentation_title_check",
+        ),
+        CheckConstraint(
+            "practice_type_code IS NULL OR char_length(trim(practice_type_code)) > 0",
+            name="analysis_jobs_practice_type_code_check",
+        ),
         UniqueConstraint("idempotency_key", name="analysis_jobs_idempotency_key_key"),
         Index("idx_analysis_jobs_session_created", "session_id", "created_at"),
         Index("idx_analysis_jobs_user_created", "user_id", "created_at"),
@@ -79,6 +87,8 @@ class AnalysisJob(Base):
     audio_content_type: Mapped[str | None] = mapped_column(String)
     audio_size_bytes: Mapped[int | None] = mapped_column(BigInteger)
     duration_ms: Mapped[int | None] = mapped_column(BigInteger)
+    presentation_title: Mapped[str | None] = mapped_column(String(100))
+    practice_type_code: Mapped[str | None] = mapped_column(String)
 
     analysis_version: Mapped[str] = mapped_column(String, nullable=False, server_default="v1")
     status: Mapped[str] = mapped_column(String, nullable=False, server_default="queued")
