@@ -32,6 +32,8 @@ class SqlAlchemyJobRepository:
         audio_content_type: str | None,
         audio_size_bytes: int | None,
         duration_ms: int | None,
+        presentation_title: str | None = None,
+        practice_type_code: str | None = None,
     ) -> JobCreation:
         values = {
             "idempotency_key": idempotency_key,
@@ -41,6 +43,8 @@ class SqlAlchemyJobRepository:
             "audio_content_type": audio_content_type,
             "audio_size_bytes": audio_size_bytes,
             "duration_ms": duration_ms,
+            "presentation_title": presentation_title,
+            "practice_type_code": practice_type_code,
             "analysis_version": "v1",
             "status": "queued",
         }
@@ -83,6 +87,8 @@ class SqlAlchemyJobRepository:
             "audio_content_type",
             "audio_size_bytes",
             "duration_ms",
+            "presentation_title",
+            "practice_type_code",
         )
         mismatches = [name for name in request_fields if getattr(job, name) != expected[name]]
         if mismatches:
@@ -121,6 +127,8 @@ class SqlAlchemyJobRepository:
             job_id = job.id
             audio_object_key = job.audio_object_key
             analysis_version = job.analysis_version
+            presentation_title = job.presentation_title
+            practice_type_code = job.practice_type_code
             lease_token = uuid.uuid4()
 
             session.execute(
@@ -145,6 +153,8 @@ class SqlAlchemyJobRepository:
                 audio_object_key=audio_object_key,
                 analysis_version=analysis_version,
                 lease_token=lease_token,
+                presentation_title=presentation_title,
+                practice_type_code=practice_type_code,
             )
 
     def renew_lease(

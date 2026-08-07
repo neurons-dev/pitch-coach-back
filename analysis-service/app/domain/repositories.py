@@ -17,6 +17,8 @@ class JobRepository(Protocol):
         audio_content_type: str | None,
         audio_size_bytes: int | None,
         duration_ms: int | None,
+        presentation_title: str | None = None,
+        practice_type_code: str | None = None,
     ) -> JobCreation: ...
 
     def get_job(self, job_id: uuid.UUID) -> AnalysisJobLike | None: ...

@@ -69,6 +69,8 @@ def create_analysis_job(
             audio_content_type=body.audio_content_type,
             audio_size_bytes=body.audio_size_bytes,
             duration_ms=body.duration_ms,
+            presentation_title=body.title,
+            practice_type_code=body.practice_type_code,
         )
     except IdempotencyKeyConflictError as exc:
         raise ApiException(
@@ -135,6 +137,7 @@ def _to_status_response(job: AnalysisJobLike) -> AnalysisJobStatusResponse:
                     title=item.title,
                     description=item.description,
                     metric_code=item.metric_code,
+                    evidence=item.evidence,
                     sort_order=item.sort_order,
                 )
                 for item in job.result.feedback_items

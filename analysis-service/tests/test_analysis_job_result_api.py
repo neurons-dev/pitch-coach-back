@@ -23,6 +23,7 @@ def _result(**overrides) -> AnalysisResultInput:
                 title="종합 총평",
                 description="Stable overall.",
                 metric_code=None,
+                evidence={"sourceType": "metric", "metricCode": "SPEED", "metricScore": 82},
                 sort_order=0,
             ),
             FeedbackItemInput(
@@ -30,6 +31,7 @@ def _result(**overrides) -> AnalysisResultInput:
                 title="Pace",
                 description="The pace was stable.",
                 metric_code="SPEED",
+                evidence={"sourceType": "metric", "metricCode": "SPEED", "metricScore": 82},
                 sort_order=1,
             ),
         ],
@@ -103,6 +105,7 @@ def _fake_result_like(result_input: AnalysisResultInput):
                 title=f.title,
                 description=f.description,
                 metric_code=f.metric_code,
+                evidence=f.evidence,
                 sort_order=f.sort_order,
             )
             for f in result_input.feedback_items
@@ -124,6 +127,7 @@ class TestToStatusResponseMapping:
         payload = response.model_dump(by_alias=True)
         assert payload["result"]["metricScores"][0]["metricCode"] == "SPEED"
         assert payload["result"]["feedbackItems"][0]["itemType"] == "summary"
+        assert payload["result"]["feedbackItems"][0]["evidence"]["metricScore"] == 82
 
     def test_non_completed_job_returns_null_result(self):
         job = _fake_job(status="processing", result=None)
