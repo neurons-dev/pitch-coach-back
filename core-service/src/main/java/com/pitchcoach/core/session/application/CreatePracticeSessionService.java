@@ -36,7 +36,7 @@ public class CreatePracticeSessionService {
         PracticeType practiceType = practiceTypeJpaRepository.findByCodeAndActiveTrue(practiceTypeCode)
                 .orElseThrow(() -> new PracticeTypeNotFoundException(practiceTypeCode));
 
-        PracticeSession session = PracticeSession.create(user, practiceType, request.title());
+        PracticeSession session = PracticeSession.create(user, practiceType, request.title(), request.targetDurationSeconds());
         practiceSessionJpaRepository.saveAndFlush(session);
 
         return PracticeSessionResponse.from(session);
