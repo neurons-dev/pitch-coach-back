@@ -13,6 +13,8 @@ from app.domain.metrics import (
     calc_speech_silence_ms,
     calc_speed,
     calc_structure,
+    detect_filler_occurrences,
+    detect_structure_signals,
 )
 from app.infrastructure.pronunciation.local import LocalPronunciationAssessor
 
@@ -71,6 +73,19 @@ class TestCalcFiller:
         assert long.score > short.score
         assert short.raw_value == long.raw_value == 2.0
 
+    def test_detection_exposes_exact_character_positions(self):
+        # given
+        text = "안녕하세요. 어 오늘은 음 발표를 시작합니다."
+
+        # when
+        occurrences = detect_filler_occurrences(text)
+
+        # then
+        assert [(item.text, item.start_char, item.end_char) for item in occurrences] == [
+            ("어", 7, 8),
+            ("음", 13, 14),
+        ]
+
 
 class TestCalcStructure:
     def test_all_markers_present_scores_100(self):
@@ -104,6 +119,23 @@ class TestCalcStructure:
         full_text = " ".join(s.text for s in segments)
         result = calc_structure(_calc_input(full_text, 10_000, segments))
         assert result.score == 40
+
+    def test_detection_exposes_structure_signals_without_changing_score(self):
+        # given
+        segments = [
+            _segment(0, 1000, text="안녕하세요 오늘은"),
+            _segment(4000, 5000, text="그리고 예를 들어"),
+            _segment(9000, 10000, text="마지막으로 정리하면"),
+        ]
+        calc_input = _calc_input(" ".join(segment.text for segment in segments), 10_000, segments)
+
+        # when
+        signals = detect_structure_signals(calc_input)
+        score = calc_structure(calc_input)
+
+        # then
+        assert (signals.intro, signals.body, signals.conclusion) == (True, True, True)
+        assert score.score == 100
 
 
 class TestCalcDelivery:

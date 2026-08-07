@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "observations": [
+    {
+      "sampleId": "filler-clean-structured",
+      "audioSha256": "8e3fd15aa765cb0f08ced3fdfb646b61f0a13993f4381d12bc51577da2c4cca3",
+      "sttModelVersion": "faster-whisper-tiny",
+      "transcript": "안녕하세요. 오늘은 재택근무가 팀 생산성의 미치는 영향을 말씀드리겠습니다. 먼저 집중 환경의 장점을 살펴보겠습니다. 또한 협업 과정의 변화를 설명하겠습니다. 마지막으로 핵심 내용을 정리하면 명확한 소통 규칙의 성과를 좌우합니다. 이상입니다.",
+      "durationMs": 23105,
+      "avgLogprob": -0.3342,
+      "pronunciationProvider": "local",
+      "pronunciationScore": 67
+    },
+    {
+      "sampleId": "filler-explicit-with-context",
+      "audioSha256": "1608be617023c4beb4bb67d3d9d00604385589250c01ad9c73969d2128d14191",
+      "sttModelVersion": "faster-whisper-tiny",
+      "transcript": "안녕하세요. 오늘은 음서비스 기선 결과를 말씀드리겠습니다. 먼저 사용자 의견을 살펴봤고, 그 다음으로 모랄까 주요 문제를 정리했습니다. 그리고 약간 복잡했던 가입 절차를 단순화했습니다. 마지막으로 성과를 정리하면 이탈율이 감소했습니다. 이상입니다.",
+      "durationMs": 24005,
+      "avgLogprob": -0.3039,
+      "pronunciationProvider": "local",
+      "pronunciationScore": 70
+    },
+    {
+      "sampleId": "filler-contextual-normal",
+      "audioSha256": "1f95ca95ebff0b3a192c83634cfb5fe771d8ac6657f6ce0526a061c3804f4012",
+      "sttModelVersion": "faster-whisper-tiny",
+      "transcript": "그 사람은 어제 그림을 그렸고 저는 그 결과를 발표 자료에 넣었습니다. 이제 새로운 기능은 다음 주에 배포됩니다. 약간의 차이는 있었지만 결과는 안정적이었습니다.",
+      "durationMs": 13736,
+      "avgLogprob": -0.292,
+      "pronunciationProvider": "local",
+      "pronunciationScore": 71
+    },
+    {
+      "sampleId": "structure-complete-interview",
+      "audioSha256": "9cf2e0a34891dd0ac9a8eca29da03bedf4a783c947e56fbb95651a944e3e3aab",
+      "sttModelVersion": "faster-whisper-tiny",
+      "transcript": "안녕하세요. 오늘은 제가 프로젝트 갈등을 해결한 경험을 말씀드리겠습니다. 먼저 상황을 설명하겠습니다. 팀의 일정이 지연되고 있었습니다. 그리고 원인을 파악하기 위해 구성원과 개별 며담을 진행했습니다. 예를 들어 업무 범위를 다시 나누고 우선 순위를 합의했습니다. 마지막으로 결과를 말씀드리면 일정을 회복했고 협업 방식도 개선했습니다. 이상입니다.",
+      "durationMs": 31318,
+      "avgLogprob": -0.3541,
+      "pronunciationProvider": "local",
+      "pronunciationScore": 65
+    },
+    {
+      "sampleId": "structure-missing-conclusion",
+      "audioSha256": "bc34c086b409fb303eb4f72aa42efbfb92ee40959a73141ff20d8cbe2433abd2",
+      "sttModelVersion": "faster-whisper-tiny",
+      "transcript": "오늘 진행한 사용자 조사 결과를 공유하겠습니다. 먼저 참여자는 스묵 명이었습니다. 또한 인터뷰와 설문을 함께 진행했습니다. 얘를 들어 가입 화면에서 가장 많은 이탈이 발생했습니다. 이 결과를 다음 기선 작업에 반영할 예정입니다.",
+      "durationMs": 20395,
+      "avgLogprob": -0.2507,
+      "pronunciationProvider": "local",
+      "pronunciationScore": 75
+    },
+    {
+      "sampleId": "structure-disordered",
+      "audioSha256": "1fc54cb2b979aa22b32a2c0a6ff6ecd85e845ee334ffa8ef8182d6abf858cfa8",
+      "sttModelVersion": "faster-whisper-tiny",
+      "transcript": "마지막으로 정리하면 사용자 만족도가 중요합니다. 그리고 조사 방법을 설명하겠습니다. 안녕하세요. 오늘은 서비스 기선 결과를 말씀드리겠습니다.",
+      "durationMs": 13647,
+      "avgLogprob": -0.2931,
+      "pronunciationProvider": "local",
+      "pronunciationScore": 71
+    }
+  ]
+}
