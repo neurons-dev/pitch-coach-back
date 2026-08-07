@@ -1,0 +1,245 @@
+{
+  "schemaVersion": 1,
+  "description": "발음·필러·발표 구조 개선 전후를 동일 조건에서 비교하기 위한 한국어 검증 샘플",
+  "samples": [
+    {
+      "sampleId": "filler-clean-structured",
+      "title": "재택근무와 팀 생산성",
+      "practiceTypeCode": "PRESENTATION",
+      "transcript": "안녕하세요. 오늘은 재택근무가 팀 생산성에 미치는 영향을 말씀드리겠습니다. 먼저 집중 환경의 장점을 살펴보겠습니다. 또한 협업 과정의 변화를 설명하겠습니다. 마지막으로 핵심 내용을 정리하면 명확한 소통 규칙이 성과를 좌우합니다. 이상입니다.",
+      "durationMs": 10000,
+      "segments": [
+        {
+          "startMs": 0,
+          "endMs": 3000,
+          "text": "안녕하세요. 오늘은 재택근무가 팀 생산성에 미치는 영향을 말씀드리겠습니다."
+        },
+        {
+          "startMs": 3000,
+          "endMs": 7000,
+          "text": "먼저 집중 환경의 장점을 살펴보겠습니다. 또한 협업 과정의 변화를 설명하겠습니다."
+        },
+        {
+          "startMs": 7000,
+          "endMs": 10000,
+          "text": "마지막으로 핵심 내용을 정리하면 명확한 소통 규칙이 성과를 좌우합니다. 이상입니다."
+        }
+      ],
+      "expectedFillers": [],
+      "normalExpressions": [],
+      "structure": {
+        "intro": {
+          "present": true,
+          "evidence": ["안녕하세요", "오늘은 재택근무가 팀 생산성에 미치는 영향을 말씀드리겠습니다"]
+        },
+        "body": {
+          "present": true,
+          "evidence": ["먼저 집중 환경의 장점을 살펴보겠습니다", "또한 협업 과정의 변화를 설명하겠습니다"]
+        },
+        "conclusion": {
+          "present": true,
+          "evidence": ["마지막으로 핵심 내용을 정리하면", "이상입니다"]
+        },
+        "humanScore": 95
+      },
+      "pronunciation": {
+        "useForAccuracy": false,
+        "humanScores": [],
+        "note": "TTS 샘플은 파이프라인 동작 확인용이며 실제 발음 정확도의 정답으로 사용하지 않음"
+      },
+      "audio": {
+        "kind": "tts",
+        "path": "audio/generated/filler-clean-structured.wav",
+        "source": "Microsoft Heami Desktop via Windows SAPI",
+        "usage": "로컬 파이프라인 검증용. Microsoft 음성 사용 조건 확인 전 재배포 금지",
+        "useForPronunciationAccuracy": false
+      }
+    },
+    {
+      "sampleId": "filler-explicit-with-context",
+      "title": "서비스 개선 결과",
+      "practiceTypeCode": "PRESENTATION",
+      "transcript": "안녕하세요. 어 오늘은 음 서비스 개선 결과를 말씀드리겠습니다. 먼저 사용자 의견을 살펴봤고, 그 다음으로 뭐랄까 주요 문제를 정리했습니다. 그리고 약간 복잡했던 가입 절차를 단순화했습니다. 마지막으로 성과를 정리하면 이탈률이 감소했습니다. 이상입니다.",
+      "durationMs": 12000,
+      "segments": [
+        {
+          "startMs": 0,
+          "endMs": 4000,
+          "text": "안녕하세요. 어 오늘은 음 서비스 개선 결과를 말씀드리겠습니다."
+        },
+        {
+          "startMs": 4000,
+          "endMs": 8000,
+          "text": "먼저 사용자 의견을 살펴봤고, 그 다음으로 뭐랄까 주요 문제를 정리했습니다. 그리고 약간 복잡했던 가입 절차를 단순화했습니다."
+        },
+        {
+          "startMs": 8000,
+          "endMs": 12000,
+          "text": "마지막으로 성과를 정리하면 이탈률이 감소했습니다. 이상입니다."
+        }
+      ],
+      "expectedFillers": [
+        {"text": "어", "startChar": 7, "endChar": 8, "note": "발화 시작 전 망설임"},
+        {"text": "음", "startChar": 13, "endChar": 14, "note": "내용 시작 전 망설임"},
+        {"text": "뭐랄까", "startChar": 60, "endChar": 63, "note": "표현 탐색"},
+        {"text": "약간", "startChar": 83, "endChar": 85, "note": "불필요한 완곡 표현"}
+      ],
+      "normalExpressions": [
+        {"text": "그", "startChar": 53, "endChar": 54, "note": "그 다음으로: 문맥상 정상 연결 표현"}
+      ],
+      "structure": {
+        "intro": {"present": true, "evidence": ["안녕하세요", "오늘은 음 서비스 개선 결과를 말씀드리겠습니다"]},
+        "body": {"present": true, "evidence": ["먼저 사용자 의견을 살펴봤고", "그리고 약간 복잡했던 가입 절차를 단순화했습니다"]},
+        "conclusion": {"present": true, "evidence": ["마지막으로 성과를 정리하면", "이상입니다"]},
+        "humanScore": 90
+      },
+      "pronunciation": {
+        "useForAccuracy": false,
+        "humanScores": [],
+        "note": "TTS 샘플은 파이프라인 동작 확인용이며 실제 발음 정확도의 정답으로 사용하지 않음"
+      },
+      "audio": {
+        "kind": "tts",
+        "path": "audio/generated/filler-explicit-with-context.wav",
+        "source": "Microsoft Heami Desktop via Windows SAPI",
+        "usage": "로컬 파이프라인 검증용. Microsoft 음성 사용 조건 확인 전 재배포 금지",
+        "useForPronunciationAccuracy": false
+      }
+    },
+    {
+      "sampleId": "filler-contextual-normal",
+      "title": "기능 배포 결과",
+      "practiceTypeCode": "PRESENTATION",
+      "transcript": "그 사람은 어제 그림을 그렸고 저는 그 결과를 발표 자료에 넣었습니다. 이제 새로운 기능은 다음 주에 배포됩니다. 약간의 차이는 있었지만 결과는 안정적이었습니다.",
+      "durationMs": 9000,
+      "segments": [
+        {
+          "startMs": 0,
+          "endMs": 9000,
+          "text": "그 사람은 어제 그림을 그렸고 저는 그 결과를 발표 자료에 넣었습니다. 이제 새로운 기능은 다음 주에 배포됩니다. 약간의 차이는 있었지만 결과는 안정적이었습니다."
+        }
+      ],
+      "expectedFillers": [],
+      "normalExpressions": [
+        {"text": "그", "startChar": 0, "endChar": 1, "note": "사람을 수식하는 정상 표현"},
+        {"text": "그", "startChar": 20, "endChar": 21, "note": "결과를 지칭하는 정상 표현"},
+        {"text": "이제", "startChar": 40, "endChar": 42, "note": "시점을 나타내는 정상 표현"},
+        {"text": "약간", "startChar": 64, "endChar": 66, "note": "약간의 차이: 명사 수식 표현"}
+      ],
+      "structure": {
+        "intro": {"present": false, "evidence": []},
+        "body": {"present": false, "evidence": []},
+        "conclusion": {"present": false, "evidence": []},
+        "humanScore": 40
+      },
+      "pronunciation": {
+        "useForAccuracy": false,
+        "humanScores": [],
+        "note": "TTS 샘플은 파이프라인 동작 확인용이며 실제 발음 정확도의 정답으로 사용하지 않음"
+      },
+      "audio": {
+        "kind": "tts",
+        "path": "audio/generated/filler-contextual-normal.wav",
+        "source": "Microsoft Heami Desktop via Windows SAPI",
+        "usage": "로컬 파이프라인 검증용. Microsoft 음성 사용 조건 확인 전 재배포 금지",
+        "useForPronunciationAccuracy": false
+      }
+    },
+    {
+      "sampleId": "structure-complete-interview",
+      "title": "갈등 해결 경험",
+      "practiceTypeCode": "INTERVIEW",
+      "transcript": "안녕하세요. 오늘은 제가 프로젝트 갈등을 해결한 경험을 말씀드리겠습니다. 먼저 상황을 설명하겠습니다. 팀의 일정이 지연되고 있었습니다. 그리고 원인을 파악하기 위해 구성원과 개별 면담을 진행했습니다. 예를 들어 업무 범위를 다시 나누고 우선순위를 합의했습니다. 마지막으로 결과를 말씀드리면 일정을 회복했고 협업 방식도 개선했습니다. 이상입니다.",
+      "durationMs": 15000,
+      "segments": [
+        {"startMs": 0, "endMs": 5000, "text": "안녕하세요. 오늘은 제가 프로젝트 갈등을 해결한 경험을 말씀드리겠습니다. 먼저 상황을 설명하겠습니다."},
+        {"startMs": 5000, "endMs": 10000, "text": "팀의 일정이 지연되고 있었습니다. 그리고 원인을 파악하기 위해 구성원과 개별 면담을 진행했습니다. 예를 들어 업무 범위를 다시 나누고 우선순위를 합의했습니다."},
+        {"startMs": 10000, "endMs": 15000, "text": "마지막으로 결과를 말씀드리면 일정을 회복했고 협업 방식도 개선했습니다. 이상입니다."}
+      ],
+      "expectedFillers": [],
+      "normalExpressions": [],
+      "structure": {
+        "intro": {"present": true, "evidence": ["오늘은 제가 프로젝트 갈등을 해결한 경험을 말씀드리겠습니다"]},
+        "body": {"present": true, "evidence": ["그리고 원인을 파악하기 위해", "예를 들어 업무 범위를 다시 나누고"]},
+        "conclusion": {"present": true, "evidence": ["마지막으로 결과를 말씀드리면", "이상입니다"]},
+        "humanScore": 95
+      },
+      "pronunciation": {
+        "useForAccuracy": false,
+        "humanScores": [],
+        "note": "TTS 샘플은 파이프라인 동작 확인용이며 실제 발음 정확도의 정답으로 사용하지 않음"
+      },
+      "audio": {
+        "kind": "tts",
+        "path": "audio/generated/structure-complete-interview.wav",
+        "source": "Microsoft Heami Desktop via Windows SAPI",
+        "usage": "로컬 파이프라인 검증용. Microsoft 음성 사용 조건 확인 전 재배포 금지",
+        "useForPronunciationAccuracy": false
+      }
+    },
+    {
+      "sampleId": "structure-missing-conclusion",
+      "title": "사용자 조사 결과",
+      "practiceTypeCode": "PRESENTATION",
+      "transcript": "오늘 진행한 사용자 조사 결과를 공유하겠습니다. 먼저 참여자는 스무 명이었습니다. 또한 인터뷰와 설문을 함께 진행했습니다. 예를 들어 가입 화면에서 가장 많은 이탈이 발생했습니다. 이 결과를 다음 개선 작업에 반영할 예정입니다.",
+      "durationMs": 10000,
+      "segments": [
+        {"startMs": 0, "endMs": 3000, "text": "오늘 진행한 사용자 조사 결과를 공유하겠습니다. 먼저 참여자는 스무 명이었습니다."},
+        {"startMs": 3000, "endMs": 7000, "text": "또한 인터뷰와 설문을 함께 진행했습니다. 예를 들어 가입 화면에서 가장 많은 이탈이 발생했습니다."},
+        {"startMs": 7000, "endMs": 10000, "text": "이 결과를 다음 개선 작업에 반영할 예정입니다."}
+      ],
+      "expectedFillers": [],
+      "normalExpressions": [],
+      "structure": {
+        "intro": {"present": true, "evidence": ["오늘 진행한 사용자 조사 결과를 공유하겠습니다"]},
+        "body": {"present": true, "evidence": ["또한 인터뷰와 설문을 함께 진행했습니다", "예를 들어 가입 화면에서"]},
+        "conclusion": {"present": false, "evidence": []},
+        "humanScore": 65
+      },
+      "pronunciation": {
+        "useForAccuracy": false,
+        "humanScores": [],
+        "note": "TTS 샘플은 파이프라인 동작 확인용이며 실제 발음 정확도의 정답으로 사용하지 않음"
+      },
+      "audio": {
+        "kind": "tts",
+        "path": "audio/generated/structure-missing-conclusion.wav",
+        "source": "Microsoft Heami Desktop via Windows SAPI",
+        "usage": "로컬 파이프라인 검증용. Microsoft 음성 사용 조건 확인 전 재배포 금지",
+        "useForPronunciationAccuracy": false
+      }
+    },
+    {
+      "sampleId": "structure-disordered",
+      "title": "서비스 개선 결과",
+      "practiceTypeCode": "PRESENTATION",
+      "transcript": "마지막으로 정리하면 사용자 만족도가 중요합니다. 그리고 조사 방법을 설명하겠습니다. 안녕하세요. 오늘은 서비스 개선 결과를 말씀드리겠습니다.",
+      "durationMs": 9000,
+      "segments": [
+        {"startMs": 0, "endMs": 3000, "text": "마지막으로 정리하면 사용자 만족도가 중요합니다."},
+        {"startMs": 3000, "endMs": 6000, "text": "그리고 조사 방법을 설명하겠습니다."},
+        {"startMs": 6000, "endMs": 9000, "text": "안녕하세요. 오늘은 서비스 개선 결과를 말씀드리겠습니다."}
+      ],
+      "expectedFillers": [],
+      "normalExpressions": [],
+      "structure": {
+        "intro": {"present": true, "evidence": ["안녕하세요", "오늘은 서비스 개선 결과를 말씀드리겠습니다"]},
+        "body": {"present": true, "evidence": ["그리고 조사 방법을 설명하겠습니다"]},
+        "conclusion": {"present": true, "evidence": ["마지막으로 정리하면"]},
+        "humanScore": 35
+      },
+      "pronunciation": {
+        "useForAccuracy": false,
+        "humanScores": [],
+        "note": "구조 순서 검증용 TTS 샘플이며 실제 발음 정확도의 정답으로 사용하지 않음"
+      },
+      "audio": {
+        "kind": "tts",
+        "path": "audio/generated/structure-disordered.wav",
+        "source": "Microsoft Heami Desktop via Windows SAPI",
+        "usage": "로컬 파이프라인 검증용. Microsoft 음성 사용 조건 확인 전 재배포 금지",
+        "useForPronunciationAccuracy": false
+      }
+    }
+  ]
+}
