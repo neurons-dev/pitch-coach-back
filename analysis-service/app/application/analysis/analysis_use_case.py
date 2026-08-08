@@ -80,6 +80,10 @@ class AnalysisUseCase:
         pronunciation_metric = MetricScoreInput(
             metric_code="PRONUNCIATION",
             score=assessment.pronunciation_score,
+            raw_value=(
+                float(assessment.accuracy_score) if assessment.accuracy_score is not None else None
+            ),
+            unit="ACCURACY" if assessment.accuracy_score is not None else None,
             details=pronunciation_details,
         )
         fluency_override = None

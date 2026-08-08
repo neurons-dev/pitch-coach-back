@@ -91,6 +91,7 @@ class PronunciationAssessment:
     provider: str
     pronunciation_score: int
     fluency_score: int | None = None
+    accuracy_score: int | None = None
     fallback_reason: str | None = None
     raw_response: dict = field(default_factory=dict)
 
