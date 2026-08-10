@@ -7,13 +7,14 @@ from app.domain.entities import MetricCalculationInput
 
 HIGH_CONFIDENCE_FILLERS = frozenset({"어", "음", "뭐랄까"})
 
+_WORD_PATTERN = re.compile(r"[가-힣]+")
+
 
 @dataclass(frozen=True)
 class FillerCandidate:
     text: str
     start_char: int
     end_char: int
-    candidate_type: str
     start_ms: int | None = None
     end_ms: int | None = None
     preceding_pause_ms: int | None = None
@@ -102,7 +103,6 @@ def _candidate(
     text: str,
     start_char: int,
     end_char: int,
-    candidate_type: str,
     timed_words: list[_TimedTextSpan],
 ) -> FillerCandidate:
     start_ms, end_ms, preceding_pause_ms, following_pause_ms = _timing_for_span(
@@ -112,7 +112,6 @@ def _candidate(
         text=text,
         start_char=start_char,
         end_char=end_char,
-        candidate_type=candidate_type,
         start_ms=start_ms,
         end_ms=end_ms,
         preceding_pause_ms=preceding_pause_ms,
@@ -122,49 +121,15 @@ def _candidate(
 
 def find_filler_candidates(calc_input: MetricCalculationInput) -> list[FillerCandidate]:
     timed_words = _locate_timed_words(calc_input)
-    candidates: dict[tuple[int, int], FillerCandidate] = {}
-
-    repeated_pattern = re.compile(
-        r"(?<![가-힣])(?P<first>[가-힣]{1,})\s+(?P<second>(?P=first))(?![가-힣])"
-    )
-    for match in repeated_pattern.finditer(calc_input.text):
-        item = _candidate(
-            text=match.group("second"),
-            start_char=match.start("second"),
-            end_char=match.end("second"),
-            candidate_type="REPETITION",
-            timed_words=timed_words,
-        )
-        candidates.setdefault((item.start_char, item.end_char), item)
-
-    stutter_pattern = re.compile(
-        r"(?<![가-힣])(?P<fragment>[가-힣]{1,2})\s+(?P<word>[가-힣]{2,})(?![가-힣])"
-    )
-    for match in stutter_pattern.finditer(calc_input.text):
-        fragment = match.group("fragment")
-        if not match.group("word").startswith(fragment):
-            continue
-        item = _candidate(
-            text=fragment,
-            start_char=match.start("fragment"),
-            end_char=match.end("fragment"),
-            candidate_type="STUTTER",
-            timed_words=timed_words,
-        )
-        candidates.setdefault((item.start_char, item.end_char), item)
-
-    word_pattern = re.compile(r"[가-힣]+")
-    for match in word_pattern.finditer(calc_input.text):
-        item = _candidate(
+    return [
+        _candidate(
             text=match.group(),
             start_char=match.start(),
             end_char=match.end(),
-            candidate_type="LEXICAL",
             timed_words=timed_words,
         )
-        candidates.setdefault((item.start_char, item.end_char), item)
-
-    return sorted(candidates.values(), key=lambda item: (item.start_char, item.end_char))
+        for match in _WORD_PATTERN.finditer(calc_input.text)
+    ]
 
 
 def occurrence_from_candidate(
@@ -196,7 +161,6 @@ def detect_conservative_filler_occurrences(
                 text=match.group(),
                 start_char=match.start(),
                 end_char=match.end(),
-                candidate_type="LEXICAL",
                 timed_words=timed_words,
             ),
             reason="HIGH_CONFIDENCE_MARKER",

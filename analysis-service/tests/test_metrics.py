@@ -169,18 +169,18 @@ class TestCalcFiller:
         assert candidates[0].end_ms == 300
         assert candidates[0].following_pause_ms == 600
 
-    def test_immediate_word_repetition_counts_only_the_extra_word(self):
+    def test_repeated_and_stuttered_words_are_plain_candidates_left_for_llm_judgment(self):
         # given
-        text = "저희 팀은 목표를 목표를 달성했습니다."
+        text = "저희 팀은 목표를 목표를 달성했습니다. 발 발표를 시작하겠습니다."
         calc_input = _calc_input(text, duration_ms=5000)
 
         # when
         candidates = find_filler_candidates(calc_input)
-        repetitions = [item for item in candidates if item.candidate_type == "REPETITION"]
+        candidate_texts = [item.text for item in candidates]
 
         # then
-        assert [item.text for item in repetitions] == ["목표를"]
-        assert repetitions[0].start_char == text.rindex("목표를")
+        assert candidate_texts.count("목표를") == 2
+        assert "발" in candidate_texts
 
     def test_repeated_sentences_keep_distinct_filler_positions(self):
         # given
@@ -196,28 +196,6 @@ class TestCalcFiller:
             ("음", text.rindex("음")),
         ]
 
-    def test_stuttered_prefix_is_detected(self):
-        # given
-        calc_input = _calc_input("발 발표를 시작하겠습니다.", duration_ms=5000)
-
-        # when
-        candidates = find_filler_candidates(calc_input)
-        stutters = [item for item in candidates if item.candidate_type == "STUTTER"]
-
-        # then
-        assert [item.text for item in stutters] == ["발"]
-
-    def test_ambiguous_stutter_pattern_is_left_for_llm_judgment(self):
-        # given
-        calc_input = _calc_input("제 제안은 일정 단축입니다.", duration_ms=5000)
-
-        # when
-        candidates = find_filler_candidates(calc_input)
-        stutters = [item for item in candidates if item.candidate_type == "STUTTER"]
-
-        # then
-        assert [item.text for item in stutters] == ["제"]
-
     def test_self_correction_marker_is_a_plain_candidate_left_for_llm_judgment(self):
         # given
         text = "이번 목표는... 아니, 핵심 목표는 이탈률 감소입니다."
@@ -225,10 +203,9 @@ class TestCalcFiller:
 
         # when
         candidates = find_filler_candidates(calc_input)
-        marker = next(item for item in candidates if item.text == "아니")
 
         # then
-        assert marker.candidate_type == "LEXICAL"
+        assert any(item.text == "아니" for item in candidates)
 
     def test_metric_details_store_count_rate_positions_and_reasons(self):
         # given
@@ -238,7 +215,7 @@ class TestCalcFiller:
             occurrences=[
                 occurrence_from_candidate(
                     candidate,
-                    reason="LLM_LEXICAL",
+                    reason="LLM_JUDGED",
                     evidence="정도 표현이 내용에 필요하지 않은 망설임으로 사용됨",
                 )
             ],
@@ -262,7 +239,7 @@ class TestCalcFiller:
             "endMs": None,
             "precedingPauseMs": None,
             "followingPauseMs": None,
-            "reason": "LLM_LEXICAL",
+            "reason": "LLM_JUDGED",
             "evidence": "정도 표현이 내용에 필요하지 않은 망설임으로 사용됨",
         }
         assert result.details["detector"] == "openai"

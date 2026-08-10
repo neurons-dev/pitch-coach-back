@@ -66,7 +66,7 @@ class TestOpenAiFillerDetector:
         assert result.occurrences == []
         assert result.detector == "openai"
         assert result.model == "gpt-4o-mini"
-        assert result.prompt_version == "llm-filler-v5"
+        assert result.prompt_version == "llm-filler-v7"
         client.chat.completions.parse.assert_not_called()
 
     def test_detect_keeps_only_candidates_reported_as_filler(self):
@@ -90,7 +90,7 @@ class TestOpenAiFillerDetector:
 
         # then
         assert len(result.occurrences) == 1
-        assert result.occurrences[0].reason == "LLM_LEXICAL"
+        assert result.occurrences[0].reason == "LLM_JUDGED"
         assert result.occurrences[0].evidence == "쉼과 함께 사용된 망설임"
         assert text[
             result.occurrences[0].start_char : result.occurrences[0].end_char
@@ -202,7 +202,7 @@ class TestFallbackFillerDetector:
         primary = MagicMock()
         primary.detect.return_value = FillerDetectionResult(
             occurrences=[
-                FillerOccurrence("그", 0, 1, "LLM_LEXICAL", "문맥상 망설임")
+                FillerOccurrence("그", 0, 1, "LLM_JUDGED", "문맥상 망설임")
             ],
             detector="openai",
         )

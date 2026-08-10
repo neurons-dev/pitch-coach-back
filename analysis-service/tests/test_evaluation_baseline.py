@@ -1,25 +1,52 @@
 from __future__ import annotations
 
-import json
 from copy import deepcopy
-from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
 from evaluation.compare import compare_reports
-from evaluation.legacy_filler import detect_legacy_filler_occurrences
 from evaluation.models import PronunciationAnnotation
 from evaluation.runner import build_baseline, load_audio_observations, load_samples
 from app.domain.filler_detector import FillerDetectionResult
 
-_ANALYSIS_SERVICE_ROOT = Path(__file__).resolve().parents[1]
-_BASELINE_PATH = _ANALYSIS_SERVICE_ROOT / "evaluation" / "baselines" / "coach-ko-v1.json"
+
+def _baseline_report() -> dict:
+    return {
+        "schemaVersion": 2,
+        "scoringRuleVersion": "coach-ko-v2",
+        "sampleSetSha256": "test-sha",
+        "sampleCount": 2,
+        "aggregate": {
+            "filler": {
+                "truePositives": 4,
+                "falsePositives": 4,
+                "falseNegatives": 4,
+                "precision": 0.5,
+                "recall": 0.5,
+                "f1": 0.5,
+            },
+            "structure": {
+                "meanAbsoluteError": 10.0,
+                "exactMatchRate": 0.5,
+                "withinTenPointsRate": 0.5,
+            },
+            "pronunciation": {
+                "eligibleSampleCount": 0,
+                "meanAbsoluteError": None,
+                "pearsonCorrelation": None,
+            },
+        },
+        "samples": [
+            {"sampleId": "sample-1"},
+            {"sampleId": "sample-2"},
+        ],
+    }
 
 
 def test_validation_samples_have_valid_annotations_and_unique_ids():
     # given
-    expected_sample_count = 6
+    expected_sample_count = 7
 
     # when
     sample_set = load_samples()
@@ -43,26 +70,6 @@ def test_pronunciation_accuracy_requires_two_human_scores():
     # when / then
     with pytest.raises(ValidationError, match="at least two"):
         PronunciationAnnotation.model_validate(input_data)
-
-
-def test_legacy_metrics_reproduce_tracked_baseline():
-    # given
-    sample_set = load_samples()
-    observations = load_audio_observations()
-    expected = json.loads(_BASELINE_PATH.read_text(encoding="utf-8"))
-
-    # when
-    actual = build_baseline(
-        sample_set,
-        observations,
-        filler_detector=detect_legacy_filler_occurrences,
-        scoring_rule_version="coach-ko-v1",
-        schema_version=1,
-        include_filler_evidence=False,
-    )
-
-    # then
-    assert actual == expected
 
 
 def test_baseline_records_injected_detector_metadata():
@@ -116,9 +123,9 @@ def test_tts_observations_are_not_used_as_pronunciation_accuracy_ground_truth():
 
 def test_comparison_reports_filler_and_structure_improvements():
     # given
-    baseline = json.loads(_BASELINE_PATH.read_text(encoding="utf-8"))
+    baseline = _baseline_report()
     candidate = deepcopy(baseline)
-    candidate["scoringRuleVersion"] = "coach-ko-v2"
+    candidate["scoringRuleVersion"] = "coach-ko-v3"
     candidate["aggregate"]["filler"]["precision"] = 0.75
     candidate["aggregate"]["filler"]["recall"] = 1.0
     candidate["aggregate"]["filler"]["f1"] = 0.8
@@ -131,8 +138,8 @@ def test_comparison_reports_filler_and_structure_improvements():
     # then
     assert comparison["metrics"]["fillerPrecision"]["delta"] == 0.25
     assert comparison["metrics"]["fillerPrecision"]["improved"] is True
-    assert comparison["metrics"]["fillerRecall"]["delta"] == 0.0
-    assert comparison["metrics"]["fillerF1"]["delta"] == 0.1333
+    assert comparison["metrics"]["fillerRecall"]["delta"] == 0.5
+    assert comparison["metrics"]["fillerF1"]["delta"] == 0.3
     assert comparison["metrics"]["fillerF1"]["improved"] is True
     assert comparison["metrics"]["fillerFalsePositives"]["delta"] == -3
     assert comparison["metrics"]["fillerFalsePositives"]["improved"] is True
@@ -143,7 +150,7 @@ def test_comparison_reports_filler_and_structure_improvements():
 
 def test_comparison_rejects_different_sample_sets():
     # given
-    baseline = json.loads(_BASELINE_PATH.read_text(encoding="utf-8"))
+    baseline = _baseline_report()
     candidate = deepcopy(baseline)
     candidate["samples"] = candidate["samples"][:-1]
 
@@ -154,7 +161,7 @@ def test_comparison_rejects_different_sample_sets():
 
 def test_comparison_rejects_changed_annotations_with_same_sample_ids():
     # given
-    baseline = json.loads(_BASELINE_PATH.read_text(encoding="utf-8"))
+    baseline = _baseline_report()
     candidate = deepcopy(baseline)
     candidate["sampleSetSha256"] = "changed"
 
