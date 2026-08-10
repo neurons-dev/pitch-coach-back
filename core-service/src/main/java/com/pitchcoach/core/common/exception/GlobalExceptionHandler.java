@@ -68,6 +68,11 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(ErrorResponse.of(e.getMessage()));
     }
 
+    @ExceptionHandler(AudioDurationExtractionFailedException.class)
+    public ResponseEntity<ErrorResponse> handleAudioDurationExtractionFailed(AudioDurationExtractionFailedException e) {
+        return ResponseEntity.badRequest().body(ErrorResponse.of(e.getMessage()));
+    }
+
     @ExceptionHandler(InvalidPracticeSessionStateException.class)
     public ResponseEntity<ErrorResponse> handleInvalidPracticeSessionState(InvalidPracticeSessionStateException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.of(e.getMessage()));

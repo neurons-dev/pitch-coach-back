@@ -21,7 +21,7 @@ public class UploadPracticeSessionAudioService {
     private final AudioStorage audioStorage;
 
     @Transactional
-    public PracticeSessionResponse upload(Long userId, UUID sessionId, MultipartFile file, long durationMs) {
+    public PracticeSessionResponse upload(Long userId, UUID sessionId, MultipartFile file) {
         PracticeSession session = practiceSessionJpaRepository.findByIdAndUserId(sessionId, userId)
                 .orElseThrow(() -> new PracticeSessionNotFoundException(sessionId));
 
@@ -32,14 +32,14 @@ public class UploadPracticeSessionAudioService {
         }
 
         audioStorage.validateContentType(file.getContentType());
-        String objectKey = audioStorage.upload(sessionId, file);
+        AudioStorage.UploadedAudio uploadedAudio = audioStorage.upload(sessionId, file);
 
         session.completeAudioUpload(
-                objectKey,
+                uploadedAudio.objectKey(),
                 file.getOriginalFilename(),
                 file.getContentType(),
                 file.getSize(),
-                durationMs
+                uploadedAudio.durationMs()
         );
         practiceSessionJpaRepository.flush();
 
