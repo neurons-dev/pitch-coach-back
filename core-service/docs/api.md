@@ -337,7 +337,7 @@ POST /api/practice-sessions/{sessionId}/audio
 Content-Type: multipart/form-data
 ```
 
-본인 소유의 발표 연습 세션에 녹음된 음성 파일을 업로드합니다. core-service가 파일을 받아 S3에 업로드합니다. 세션 상태가 `CREATED` 또는 `FAILED`일 때만 업로드할 수 있습니다. 업로드에 성공하면 상태가 `UPLOADED`로 바뀝니다.
+본인 소유의 발표 연습 세션에 녹음된 음성 파일을 업로드합니다. core-service가 파일을 받아 `ffprobe`로 재생 길이(`durationMs`)를 직접 추출한 뒤 S3에 업로드합니다. 세션 상태가 `CREATED` 또는 `FAILED`일 때만 업로드할 수 있습니다. 업로드에 성공하면 상태가 `UPLOADED`로 바뀝니다.
 
 **Path Parameter**
 
@@ -350,7 +350,6 @@ Content-Type: multipart/form-data
 | 필드 | 타입 | 제약 |
 |---|---|---|
 | file | file | 필수, 최대 50MB, 지원 형식: `audio/mpeg`, `audio/mp4`, `audio/x-m4a`, `audio/aac`, `audio/wav`, `audio/x-wav`, `audio/wave` |
-| durationMs | long | 필수, 녹음 길이(밀리초) — 클라이언트에서 측정한 값을 전달 |
 
 **Response** `200 OK`
 
@@ -376,7 +375,7 @@ Content-Type: multipart/form-data
 ```
 
 **에러**
-- `400` — 지원하지 않는 오디오 형식, 또는 `durationMs`가 0 이하
+- `400` — 지원하지 않는 오디오 형식, 또는 파일에서 재생 길이를 추출할 수 없음(손상된 파일 등)
 - `404` — 세션이 존재하지 않거나 본인 소유가 아님
 - `409` — 현재 세션 상태에서는 업로드 불가 (`UPLOADED`/`ANALYSIS_REQUESTED`/`COMPLETED` 상태)
 - `413` — 파일 크기 초과 (최대 50MB)
