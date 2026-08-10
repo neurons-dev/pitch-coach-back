@@ -7,6 +7,7 @@ os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS", "1")
 import subprocess
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -171,6 +172,48 @@ class TestS3AudioStorage:
 
 
 class TestFasterWhisperTranscriber:
+    def test_transcriber_requests_and_maps_word_timestamps(self, tmp_path: Path):
+        # given
+        audio_path = tmp_path / "audio.wav"
+        audio_path.write_bytes(b"fake")
+        fake_model = MagicMock()
+        fake_model.transcribe.return_value = (
+            iter(
+                [
+                    SimpleNamespace(
+                        start=0.0,
+                        end=1.2,
+                        text=" 음 시작합니다",
+                        avg_logprob=-0.1,
+                        words=[
+                            SimpleNamespace(
+                                start=0.1, end=0.3, word=" 음", probability=0.92
+                            ),
+                            SimpleNamespace(
+                                start=0.8,
+                                end=1.2,
+                                word=" 시작합니다",
+                                probability=0.95,
+                            ),
+                        ],
+                    )
+                ]
+            ),
+            SimpleNamespace(duration=1.2),
+        )
+        transcriber = FasterWhisperTranscriber(settings=_settings())
+        transcriber._model = fake_model
+
+        # when
+        result = transcriber._run_transcribe(audio_path, "ko-KR")
+
+        # then
+        assert fake_model.transcribe.call_args.kwargs["word_timestamps"] is True
+        assert [(word.text, word.start_ms, word.end_ms) for word in result.segments[0].words] == [
+            ("음", 100, 300),
+            ("시작합니다", 800, 1200),
+        ]
+
     def test_transcribe_returns_transcript_with_model_version_and_duration(
         self, raw_audio_file: Path
     ):

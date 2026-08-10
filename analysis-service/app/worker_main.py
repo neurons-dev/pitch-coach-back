@@ -14,6 +14,7 @@ from app.infrastructure.audio.transcriber import FasterWhisperTranscriber
 from app.infrastructure.db.job_repository import SqlAlchemyJobRepository
 from app.infrastructure.db.session import DatabaseSessionProvider
 from app.infrastructure.feedback.factory import create_feedback_generator
+from app.infrastructure.filler.factory import create_filler_detector
 from app.infrastructure.pronunciation.factory import create_pronunciation_assessor
 
 logging.basicConfig(level=get_settings().log_level)
@@ -46,6 +47,7 @@ def main() -> None:
         speech_transcriber=FasterWhisperTranscriber(settings=settings),
         pronunciation_assessor=create_pronunciation_assessor(settings),
         feedback_generator=create_feedback_generator(settings),
+        filler_detector=create_filler_detector(settings),
         pipeline_version=settings.pipeline_version,
     )
     dispatcher = Dispatcher(

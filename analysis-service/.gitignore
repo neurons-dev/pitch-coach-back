@@ -208,6 +208,10 @@ tempCodeRunnerFile.py
 # Ruff stuff:
 .ruff_cache/
 
+# Locally generated candidate metric reports
+evaluation/baselines/coach-ko-v[2-9]*.json
+evaluation/baselines/*-comparison.json
+
 # PyPI configuration file
 .pypirc
 

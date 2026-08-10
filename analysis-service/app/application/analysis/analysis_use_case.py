@@ -6,8 +6,10 @@ from app.domain.entities import (
     MetricCalculationInput,
     MetricScoreInput,
     TranscriptSegmentFeatures,
+    TranscriptWordFeatures,
 )
 from app.domain.feedback_generator import FeedbackGenerator
+from app.domain.filler_detector import FillerDetector
 from app.domain.metrics import (
     SCORING_RULE_VERSION,
     calc_all_metrics,
@@ -28,6 +30,7 @@ class AnalysisUseCase:
         speech_transcriber: SpeechTranscriber,
         pronunciation_assessor: PronunciationAssessor,
         feedback_generator: FeedbackGenerator,
+        filler_detector: FillerDetector,
         pipeline_version: str,
         language: str = _DEFAULT_LANGUAGE,
     ) -> None:
@@ -36,6 +39,7 @@ class AnalysisUseCase:
         self._speech_transcriber = speech_transcriber
         self._pronunciation_assessor = pronunciation_assessor
         self._feedback_generator = feedback_generator
+        self._filler_detector = filler_detector
         self._pipeline_version = pipeline_version
         self._language = language
 
@@ -64,6 +68,15 @@ class AnalysisUseCase:
                         end_ms=segment.end_ms,
                         text=segment.text,
                         avg_logprob=segment.avg_logprob,
+                        words=[
+                            TranscriptWordFeatures(
+                                start_ms=word.start_ms,
+                                end_ms=word.end_ms,
+                                text=word.text,
+                                probability=word.probability,
+                            )
+                            for word in segment.words
+                        ],
                     )
                     for segment in transcript.segments
                 ],
@@ -94,7 +107,13 @@ class AnalysisUseCase:
                 details=pronunciation_details,
             )
 
-        metrics = calc_all_metrics(calc_input, pronunciation_metric, fluency_override)
+        filler_detection = self._filler_detector.detect(calc_input)
+        metrics = calc_all_metrics(
+            calc_input,
+            pronunciation_metric,
+            filler_detection=filler_detection,
+            fluency_override=fluency_override,
+        )
         overall_score = calc_overall_score(metrics)
         total_speech_ms, total_silence_ms = calc_speech_silence_ms(calc_input)
         feedback_result = self._feedback_generator.generate(
@@ -125,6 +144,10 @@ class AnalysisUseCase:
                 "feedbackModel": feedback_result.model,
                 "feedbackPromptVersion": feedback_result.prompt_version,
                 "feedbackFallbackReason": feedback_result.fallback_reason,
+                "fillerDetector": filler_detection.detector,
+                "fillerModel": filler_detection.model,
+                "fillerPromptVersion": filler_detection.prompt_version,
+                "fillerFallbackReason": filler_detection.fallback_reason,
             },
             metric_scores=metrics,
             feedback_items=feedback_result.feedback_items,

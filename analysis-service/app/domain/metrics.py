@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 
 from app.domain.entities import MetricCalculationInput, MetricScoreInput
+from app.domain.filler import (
+    detect_conservative_filler_occurrences,
+    filler_occurrence_details,
+)
+from app.domain.filler_detector import FillerDetectionResult
 
-SCORING_RULE_VERSION = "coach-ko-v1"
-
-_FILLER_WORDS = ("어", "음", "그", "저기", "이제", "약간", "뭐랄까")
+SCORING_RULE_VERSION = "coach-ko-v2"
 
 _STRUCTURE_MARKERS = {
     "intro": ("안녕하세요", "먼저", "오늘은"),
@@ -18,13 +20,6 @@ _STRUCTURE_MARKERS = {
 _SPEECH_SPEED_TARGET_CPM = (300, 450)
 _LONG_PAUSE_THRESHOLD_MS = 2000
 _FILLER_PENALTY_PER_MINUTE = 10
-
-
-@dataclass(frozen=True)
-class FillerOccurrence:
-    text: str
-    start_char: int
-    end_char: int
 
 
 @dataclass(frozen=True)
@@ -53,19 +48,15 @@ def calc_speed(calc_input: MetricCalculationInput) -> MetricScoreInput:
     return MetricScoreInput(metric_code="SPEED", score=score, raw_value=round(cpm, 1), unit="CPM")
 
 
-def detect_filler_occurrences(text: str) -> list[FillerOccurrence]:
-    occurrences: list[FillerOccurrence] = []
-    for word in _FILLER_WORDS:
-        pattern = rf"(?<![가-힣]){re.escape(word)}(?![가-힣])"
-        occurrences.extend(
-            FillerOccurrence(text=match.group(), start_char=match.start(), end_char=match.end())
-            for match in re.finditer(pattern, text)
-        )
-    return sorted(occurrences, key=lambda occurrence: (occurrence.start_char, occurrence.end_char))
-
-
-def calc_filler(calc_input: MetricCalculationInput) -> MetricScoreInput:
-    count = len(detect_filler_occurrences(calc_input.text))
+def calc_filler(
+    calc_input: MetricCalculationInput,
+    detection: FillerDetectionResult | None = None,
+) -> MetricScoreInput:
+    resolved = detection or FillerDetectionResult(
+        occurrences=detect_conservative_filler_occurrences(calc_input),
+        detector="conservative-v1",
+    )
+    count = len(resolved.occurrences)
 
     duration_min = max(calc_input.duration_ms / 1000 / 60, 1 / 60)
     per_minute = count / duration_min
@@ -76,7 +67,17 @@ def calc_filler(calc_input: MetricCalculationInput) -> MetricScoreInput:
         score=score,
         raw_value=float(count),
         unit="COUNT",
-        details={"perMinute": round(per_minute, 2)},
+        details={
+            "totalCount": count,
+            "perMinute": round(per_minute, 2),
+            "detector": resolved.detector,
+            "model": resolved.model,
+            "promptVersion": resolved.prompt_version,
+            "fallbackReason": resolved.fallback_reason,
+            "occurrences": [
+                filler_occurrence_details(item) for item in resolved.occurrences
+            ],
+        },
     )
 
 
@@ -153,11 +154,13 @@ def calc_fluency(calc_input: MetricCalculationInput) -> MetricScoreInput:
 def calc_all_metrics(
     calc_input: MetricCalculationInput,
     pronunciation_metric: MetricScoreInput,
+    *,
+    filler_detection: FillerDetectionResult | None = None,
     fluency_override: MetricScoreInput | None = None,
 ) -> list[MetricScoreInput]:
     return [
         calc_speed(calc_input),
-        calc_filler(calc_input),
+        calc_filler(calc_input, filler_detection),
         calc_structure(calc_input),
         calc_delivery(calc_input),
         pronunciation_metric,

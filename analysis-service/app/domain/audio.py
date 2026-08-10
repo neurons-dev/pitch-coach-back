@@ -6,11 +6,20 @@ from typing import Protocol
 
 
 @dataclass(frozen=True)
+class TranscriptWord:
+    start_ms: int
+    end_ms: int
+    text: str
+    probability: float
+
+
+@dataclass(frozen=True)
 class TranscriptSegment:
     start_ms: int
     end_ms: int
     text: str
     avg_logprob: float
+    words: list[TranscriptWord] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

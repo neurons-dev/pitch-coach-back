@@ -6,7 +6,7 @@ from pathlib import Path
 from faster_whisper import WhisperModel
 
 from app.core.config import Settings
-from app.domain.audio import Transcript, TranscriptSegment
+from app.domain.audio import Transcript, TranscriptSegment, TranscriptWord
 from app.domain.errors import AnalysisError
 
 
@@ -53,7 +53,10 @@ class FasterWhisperTranscriber:
 
         try:
             segments_iter, info = model.transcribe(
-                str(audio_path), language=lang_code, vad_filter=True
+                str(audio_path),
+                language=lang_code,
+                vad_filter=True,
+                word_timestamps=True,
             )
             segments = [
                 TranscriptSegment(
@@ -61,6 +64,16 @@ class FasterWhisperTranscriber:
                     end_ms=int(segment.end * 1000),
                     text=segment.text.strip(),
                     avg_logprob=float(segment.avg_logprob),
+                    words=[
+                        TranscriptWord(
+                            start_ms=int(word.start * 1000),
+                            end_ms=int(word.end * 1000),
+                            text=word.word.strip(),
+                            probability=float(word.probability),
+                        )
+                        for word in (getattr(segment, "words", None) or [])
+                        if word.word.strip()
+                    ],
                 )
                 for segment in segments_iter
             ]

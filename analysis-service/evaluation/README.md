@@ -9,7 +9,7 @@
 - `capture_audio_baseline.py`: TTS를 현재 Faster Whisper와 로컬 발음 평가기에 통과시켜 관측값 저장
 - `runner.py`: 필러 Precision/Recall/F1, 구조 점수 일치도, 발음 비교 지표 생성
 - `compare.py`: 동일한 샘플로 생성한 기존 baseline과 개선 후보 결과 비교
-- `baselines/coach-ko-v1.json`: 현재 `SCORING_RULE_VERSION` 기준 결과
+- `baselines/coach-ko-v1.json`: 고정 단어 기반 기존 결과
 - `PUBLIC_AUDIO_SOURCES.md`: 공개 한국어 음성 후보의 출처, 라이선스, 채택 여부
 
 ## 실행
@@ -28,9 +28,11 @@ python -m evaluation.runner
 비교 도구는 샘플셋 해시를 확인해 발표문이나 정답 라벨이 달라진 결과끼리 비교되는 것을 막는다.
 
 ```powershell
-python -m evaluation.runner --output evaluation/baselines/coach-ko-v2.json
-python -m evaluation.compare evaluation/baselines/coach-ko-v1.json evaluation/baselines/coach-ko-v2.json
+python -m evaluation.runner
+python -m evaluation.compare evaluation/baselines/coach-ko-v1.json evaluation/baselines/coach-ko-v2.local.json --output evaluation/baselines/coach-ko-v1-v2-comparison.json
 ```
+
+`runner.py`는 현재 `FILLER_DETECTOR` 설정을 사용한다. 기본값은 `openai`이며 API 키가 필요하다. 필러 탐지 모델은 `FILLER_DETECTOR_MODEL`(기본값 `gpt-4o`)로 피드백 생성용 `OPENAI_MODEL`과 분리되어 있다 — 문맥 판단 정확도가 중요해 `gpt-4o-mini`보다 정밀도가 높은 모델을 기본으로 쓴다. 결과에는 탐지기, 모델, 프롬프트 버전과 폴백 사유가 포함된다. LLM 결과는 모델 업데이트에 따라 달라질 수 있으므로 생성된 v2 결과와 비교 파일은 Git에 커밋하지 않고 PR 검증 결과에 Precision, Recall, F1과 주요 오탐만 기록한다.
 
 ## 평가 기준
 
@@ -39,6 +41,13 @@ python -m evaluation.compare evaluation/baselines/coach-ko-v1.json evaluation/ba
 - 발음: `useForAccuracy=true`이며 사람 점수가 있는 실제 사람 음성만 MAE와 Pearson 상관계수에 포함
 
 TTS는 STT부터 발음 평가기까지 파이프라인이 동작하는지 확인하는 용도다. 합성 음성의 발음 점수는 저장하지만 정확도의 정답에는 포함하지 않는다.
+
+## 한국어 NLP 도구 검토
+
+- Kiwi는 형태소와 품사 정보를 제공하지만 `그`, `이제`, `약간`이 문맥상 불필요한 말버릇인지 직접 판정하지 않는다.
+- KoNLPy 계열은 JVM 등 운영 의존성이 추가되지만 필러 판정 기능을 제공하지 않는다.
+- 따라서 별도 형태소 분석기는 추가하지 않고, 로컬에서는 후보 위치·반복·말 더듬음·문장 중단과 timestamp를 추출하며 LLM이 문맥상 필러 여부를 판정한다.
+- LLM 장애 시에는 `어`, `음`, `뭐랄까`만 세는 보수적 폴백을 사용한다.
 
 ## 공개·사람 음성 추가 기준
 
