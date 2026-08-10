@@ -104,7 +104,6 @@ def test_baseline_records_injected_detector_metadata():
         "detector": "openai",
         "model": "test-model",
         "promptVersion": "test-prompt-v1",
-        "fallbackReason": None,
         "detections": [],
     }
 
@@ -116,7 +115,10 @@ def test_tts_observations_are_not_used_as_pronunciation_accuracy_ground_truth():
 
     # when
     report = build_baseline(
-        sample_set, observations, structure_analyzer=_fake_structure_analyzer
+        sample_set,
+        observations,
+        structure_analyzer=_fake_structure_analyzer,
+        filler_detector=lambda _calc_input: FillerDetectionResult(detector="fake"),
     )
 
     # then

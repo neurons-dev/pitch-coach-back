@@ -5,8 +5,6 @@ from dataclasses import dataclass
 
 from app.domain.entities import MetricCalculationInput
 
-HIGH_CONFIDENCE_FILLERS = frozenset({"어", "음", "뭐랄까"})
-
 _WORD_PATTERN = re.compile(r"[가-힣]+")
 
 
@@ -40,10 +38,6 @@ class _TimedTextSpan:
     end_char: int
     start_ms: int
     end_ms: int
-
-
-def _standalone_pattern(word: str) -> re.Pattern[str]:
-    return re.compile(rf"(?<![가-힣]){re.escape(word)}(?![가-힣])")
 
 
 def _locate_timed_words(calc_input: MetricCalculationInput) -> list[_TimedTextSpan]:
@@ -149,27 +143,6 @@ def occurrence_from_candidate(
         preceding_pause_ms=candidate.preceding_pause_ms,
         following_pause_ms=candidate.following_pause_ms,
     )
-
-
-def detect_conservative_filler_occurrences(
-    calc_input: MetricCalculationInput,
-) -> list[FillerOccurrence]:
-    timed_words = _locate_timed_words(calc_input)
-    occurrences = [
-        occurrence_from_candidate(
-            _candidate(
-                text=match.group(),
-                start_char=match.start(),
-                end_char=match.end(),
-                timed_words=timed_words,
-            ),
-            reason="HIGH_CONFIDENCE_MARKER",
-            evidence="LLM 장애 시 사용하는 보수적 필러 표지",
-        )
-        for word in HIGH_CONFIDENCE_FILLERS
-        for match in _standalone_pattern(word).finditer(calc_input.text)
-    ]
-    return sorted(occurrences, key=lambda item: item.start_char)
 
 
 def filler_occurrence_details(occurrence: FillerOccurrence) -> dict:

@@ -92,8 +92,6 @@ class AnalysisUseCase:
             normalized_path.unlink(missing_ok=True)
 
         pronunciation_details = {"provider": assessment.provider}
-        if assessment.fallback_reason is not None:
-            pronunciation_details["fallbackReason"] = assessment.fallback_reason
         pronunciation_metric = MetricScoreInput(
             metric_code="PRONUNCIATION",
             score=assessment.pronunciation_score,
@@ -153,11 +151,9 @@ class AnalysisUseCase:
                 "feedbackGenerator": feedback_result.generator,
                 "feedbackModel": feedback_result.model,
                 "feedbackPromptVersion": feedback_result.prompt_version,
-                "feedbackFallbackReason": feedback_result.fallback_reason,
                 "fillerDetector": filler_detection.detector,
                 "fillerModel": filler_detection.model,
                 "fillerPromptVersion": filler_detection.prompt_version,
-                "fillerFallbackReason": filler_detection.fallback_reason,
                 "structureAnalyzer": structure_result.analyzer,
                 "structureModel": structure_result.model,
                 "structurePromptVersion": structure_result.prompt_version,

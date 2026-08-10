@@ -14,10 +14,7 @@ from app.domain.entities import (
     StructureAnalysisResult,
     TranscriptSegmentFeatures,
 )
-from app.domain.filler import (
-    FillerOccurrence,
-    detect_conservative_filler_occurrences,
-)
+from app.domain.filler import FillerOccurrence
 from app.domain.filler_detector import FillerDetectionResult
 from app.domain.metrics import (
     SCORING_RULE_VERSION,
@@ -34,15 +31,6 @@ DEFAULT_AUDIO_OBSERVATIONS_PATH = (
     _EVALUATION_ROOT / "baselines" / "audio_observations.json"
 )
 DEFAULT_OUTPUT_PATH = _EVALUATION_ROOT / "baselines" / "coach-ko-v2.local.json"
-
-
-def _conservative_detector(
-    calc_input: MetricCalculationInput,
-) -> FillerDetectionResult:
-    return FillerDetectionResult(
-        occurrences=detect_conservative_filler_occurrences(calc_input),
-        detector="conservative-v1",
-    )
 
 
 def load_samples(path: Path = DEFAULT_SAMPLES_PATH) -> ValidationSampleSet:
@@ -151,9 +139,7 @@ def build_baseline(
     audio_observations: AudioObservationSet | None = None,
     *,
     structure_analyzer: Callable[..., StructureAnalysisResult],
-    filler_detector: Callable[
-        [MetricCalculationInput], FillerDetectionResult
-    ] = _conservative_detector,
+    filler_detector: Callable[[MetricCalculationInput], FillerDetectionResult],
     scoring_rule_version: str = SCORING_RULE_VERSION,
     schema_version: int = 2,
     include_filler_evidence: bool = True,
@@ -220,7 +206,6 @@ def build_baseline(
                     "detector": filler_detection.detector,
                     "model": filler_detection.model,
                     "promptVersion": filler_detection.prompt_version,
-                    "fallbackReason": filler_detection.fallback_reason,
                 }
             )
 

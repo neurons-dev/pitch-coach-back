@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 from app.domain.entities import MetricCalculationInput, MetricScoreInput, StructureAnalysisResult
-from app.domain.filler import (
-    detect_conservative_filler_occurrences,
-    filler_occurrence_details,
-)
+from app.domain.filler import filler_occurrence_details
 from app.domain.filler_detector import FillerDetectionResult
 
 SCORING_RULE_VERSION = "coach-ko-v2"
@@ -35,13 +32,9 @@ def calc_speed(calc_input: MetricCalculationInput) -> MetricScoreInput:
 
 def calc_filler(
     calc_input: MetricCalculationInput,
-    detection: FillerDetectionResult | None = None,
+    detection: FillerDetectionResult,
 ) -> MetricScoreInput:
-    resolved = detection or FillerDetectionResult(
-        occurrences=detect_conservative_filler_occurrences(calc_input),
-        detector="conservative-v1",
-    )
-    count = len(resolved.occurrences)
+    count = len(detection.occurrences)
 
     duration_min = max(calc_input.duration_ms / 1000 / 60, 1 / 60)
     per_minute = count / duration_min
@@ -55,12 +48,11 @@ def calc_filler(
         details={
             "totalCount": count,
             "perMinute": round(per_minute, 2),
-            "detector": resolved.detector,
-            "model": resolved.model,
-            "promptVersion": resolved.prompt_version,
-            "fallbackReason": resolved.fallback_reason,
+            "detector": detection.detector,
+            "model": detection.model,
+            "promptVersion": detection.prompt_version,
             "occurrences": [
-                filler_occurrence_details(item) for item in resolved.occurrences
+                filler_occurrence_details(item) for item in detection.occurrences
             ],
         },
     )
@@ -131,7 +123,7 @@ def calc_all_metrics(
     pronunciation_metric: MetricScoreInput,
     *,
     structure_analysis: StructureAnalysisResult,
-    filler_detection: FillerDetectionResult | None = None,
+    filler_detection: FillerDetectionResult,
     fluency_override: MetricScoreInput | None = None,
 ) -> list[MetricScoreInput]:
     return [
