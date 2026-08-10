@@ -60,6 +60,16 @@ class TestCreatePronunciationAssessor:
         assessor = create_pronunciation_assessor(_settings(pronunciation_provider="local"))
         assert isinstance(assessor, LocalPronunciationAssessor)
 
+    def test_azure_without_key_raises_config_error(self):
+        with pytest.raises(ValueError, match="AZURE_SPEECH_KEY"):
+            create_pronunciation_assessor(_settings(pronunciation_provider="azure", azure_speech_key=None))
+
+    def test_azure_with_key_returns_fallback_wrapped_assessor(self):
+        assessor = create_pronunciation_assessor(
+            _settings(pronunciation_provider="azure", azure_speech_key="k")
+        )
+        assert isinstance(assessor, FallbackPronunciationAssessor)
+
     def test_unknown_provider_raises_config_error(self):
         with pytest.raises(ValueError, match="알 수 없는"):
             create_pronunciation_assessor(_settings(pronunciation_provider="bogus"))

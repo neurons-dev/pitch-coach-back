@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 
 from app.domain.entities import MetricCalculationInput, MetricScoreInput
 
@@ -17,6 +18,20 @@ _STRUCTURE_MARKERS = {
 _SPEECH_SPEED_TARGET_CPM = (300, 450)
 _LONG_PAUSE_THRESHOLD_MS = 2000
 _FILLER_PENALTY_PER_MINUTE = 10
+
+
+@dataclass(frozen=True)
+class FillerOccurrence:
+    text: str
+    start_char: int
+    end_char: int
+
+
+@dataclass(frozen=True)
+class StructureSignals:
+    intro: bool
+    body: bool
+    conclusion: bool
 
 
 def _clamp(value: float, low: int = 0, high: int = 100) -> int:
@@ -38,11 +53,19 @@ def calc_speed(calc_input: MetricCalculationInput) -> MetricScoreInput:
     return MetricScoreInput(metric_code="SPEED", score=score, raw_value=round(cpm, 1), unit="CPM")
 
 
-def calc_filler(calc_input: MetricCalculationInput) -> MetricScoreInput:
-    count = 0
+def detect_filler_occurrences(text: str) -> list[FillerOccurrence]:
+    occurrences: list[FillerOccurrence] = []
     for word in _FILLER_WORDS:
         pattern = rf"(?<![가-힣]){re.escape(word)}(?![가-힣])"
-        count += len(re.findall(pattern, calc_input.text))
+        occurrences.extend(
+            FillerOccurrence(text=match.group(), start_char=match.start(), end_char=match.end())
+            for match in re.finditer(pattern, text)
+        )
+    return sorted(occurrences, key=lambda occurrence: (occurrence.start_char, occurrence.end_char))
+
+
+def calc_filler(calc_input: MetricCalculationInput) -> MetricScoreInput:
+    count = len(detect_filler_occurrences(calc_input.text))
 
     duration_min = max(calc_input.duration_ms / 1000 / 60, 1 / 60)
     per_minute = count / duration_min
@@ -57,16 +80,15 @@ def calc_filler(calc_input: MetricCalculationInput) -> MetricScoreInput:
     )
 
 
-def calc_structure(calc_input: MetricCalculationInput) -> MetricScoreInput:
+def detect_structure_signals(calc_input: MetricCalculationInput) -> StructureSignals:
     segments = calc_input.segments
     if not segments:
         text = calc_input.text
-        hits = sum(
-            1
-            for markers in _STRUCTURE_MARKERS.values()
-            if any(marker in text for marker in markers)
+        return StructureSignals(
+            intro=any(marker in text for marker in _STRUCTURE_MARKERS["intro"]),
+            body=any(marker in text for marker in _STRUCTURE_MARKERS["body"]),
+            conclusion=any(marker in text for marker in _STRUCTURE_MARKERS["conclusion"]),
         )
-        return MetricScoreInput(metric_code="STRUCTURE", score=_clamp(40 + hits * 20), raw_value=None, unit=None)
 
     total_ms = max(calc_input.duration_ms, 1)
     early_cutoff = total_ms / 3
@@ -76,13 +98,16 @@ def calc_structure(calc_input: MetricCalculationInput) -> MetricScoreInput:
     conclusion_text = " ".join(s.text for s in segments if s.start_ms >= late_cutoff)
     body_text = calc_input.text
 
-    hits = sum(
-        (
-            any(marker in intro_text for marker in _STRUCTURE_MARKERS["intro"]),
-            any(marker in body_text for marker in _STRUCTURE_MARKERS["body"]),
-            any(marker in conclusion_text for marker in _STRUCTURE_MARKERS["conclusion"]),
-        )
+    return StructureSignals(
+        intro=any(marker in intro_text for marker in _STRUCTURE_MARKERS["intro"]),
+        body=any(marker in body_text for marker in _STRUCTURE_MARKERS["body"]),
+        conclusion=any(marker in conclusion_text for marker in _STRUCTURE_MARKERS["conclusion"]),
     )
+
+
+def calc_structure(calc_input: MetricCalculationInput) -> MetricScoreInput:
+    signals = detect_structure_signals(calc_input)
+    hits = sum((signals.intro, signals.body, signals.conclusion))
     return MetricScoreInput(metric_code="STRUCTURE", score=_clamp(40 + hits * 20), raw_value=None, unit=None)
 
 

@@ -53,6 +53,8 @@ def _create_request() -> dict[str, object]:
     return {
         "sessionId": str(uuid.uuid4()),
         "userId": 1,
+        "title": "면접 발표 연습",
+        "practiceTypeCode": "INTERVIEW",
         "audioObjectKey": "private/test/audio.m4a",
     }
 
@@ -141,6 +143,52 @@ def test_request_validation_uses_common_error_response(client: TestClient):
     assert body["details"][0]["type"] == "uuid_parsing"
     assert "input" not in body["details"][0]
     assert "msg" not in body["details"][0]
+
+
+def test_create_job_requires_presentation_title_and_type(client: TestClient):
+    # given
+    _use_repository(_FakeJobRepository())
+    request = _create_request()
+    request.pop("title")
+    request.pop("practiceTypeCode")
+
+    # when
+    response = client.post(
+        "/internal/v1/analysis-jobs",
+        json=request,
+        headers={
+            **_auth_headers(),
+            "Idempotency-Key": "missing-presentation-context",
+        },
+    )
+
+    # then
+    assert response.status_code == 422
+    fields = {detail["field"] for detail in response.json()["details"]}
+    assert fields == {"title", "practiceTypeCode"}
+
+
+def test_create_job_rejects_blank_presentation_title_and_type(client: TestClient):
+    # given
+    _use_repository(_FakeJobRepository())
+    request = _create_request()
+    request["title"] = "   "
+    request["practiceTypeCode"] = "   "
+
+    # when
+    response = client.post(
+        "/internal/v1/analysis-jobs",
+        json=request,
+        headers={
+            **_auth_headers(),
+            "Idempotency-Key": "blank-presentation-context",
+        },
+    )
+
+    # then
+    assert response.status_code == 422
+    fields = {detail["field"] for detail in response.json()["details"]}
+    assert fields == {"title", "practiceTypeCode"}
 
 
 def test_unexpected_exception_hides_internal_details(client: TestClient):

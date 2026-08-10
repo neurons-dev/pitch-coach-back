@@ -84,6 +84,8 @@ class Dispatcher:
                     result = self._analysis_runner(
                         audio_object_key=claim.audio_object_key,
                         analysis_version=claim.analysis_version,
+                        presentation_title=claim.presentation_title,
+                        practice_type_code=claim.practice_type_code,
                     )
             finally:
                 self._observe_analysis_boundary("after_analysis")

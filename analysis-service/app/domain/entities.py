@@ -19,6 +19,7 @@ class FeedbackItemLike(Protocol):
     title: str
     description: str
     metric_code: str | None
+    evidence: dict
     sort_order: int
 
 
@@ -50,6 +51,8 @@ class ClaimedJob:
     audio_object_key: str
     analysis_version: str
     lease_token: uuid.UUID
+    presentation_title: str | None = None
+    practice_type_code: str | None = None
 
 
 class JobCreationDisposition(str, Enum):
@@ -88,6 +91,7 @@ class PronunciationAssessment:
     provider: str
     pronunciation_score: int
     fluency_score: int | None = None
+    accuracy_score: int | None = None
     fallback_reason: str | None = None
     raw_response: dict = field(default_factory=dict)
 
@@ -109,6 +113,16 @@ class FeedbackItemInput:
     metric_code: str | None = None
     evidence: dict = field(default_factory=dict)
     sort_order: int = 0
+
+
+@dataclass(frozen=True)
+class FeedbackGenerationResult:
+    coach_comment: str
+    feedback_items: list[FeedbackItemInput]
+    generator: str
+    model: str | None = None
+    prompt_version: str | None = None
+    fallback_reason: str | None = None
 
 
 @dataclass(frozen=True)

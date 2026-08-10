@@ -68,6 +68,13 @@ class Settings(BaseSettings):
 
     pronunciation_provider: str = "local"
     pronunciation_provider_timeout_seconds: float = Field(default=15.0, gt=0)
+    azure_speech_key: str | None = None
+    azure_speech_region: str = "koreacentral"
+
+    feedback_generator: str = "template"
+    feedback_generator_timeout_seconds: float = Field(default=20.0, gt=0)
+    openai_api_key: str | None = None
+    openai_model: str = "gpt-4o-mini"
 
     def db_pool_size(self, role: Literal["api", "worker"]) -> int:
         if role == "api":

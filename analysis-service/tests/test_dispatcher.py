@@ -72,6 +72,39 @@ def test_dispatcher_completes_job_when_lease_is_held_throughout():
     assert boundary_events == ["before_analysis", "after_analysis"]
 
 
+def test_dispatcher_passes_presentation_context_to_analysis_runner():
+    # given
+    claim = ClaimedJob(
+        id=uuid.uuid4(),
+        audio_object_key="a.m4a",
+        analysis_version="v1",
+        lease_token=uuid.uuid4(),
+        presentation_title="면접 발표 연습",
+        practice_type_code="INTERVIEW",
+    )
+    fake = _FakeJobRepository(claim=claim)
+    received: dict = {}
+
+    def run_analysis(**kwargs):
+        received.update(kwargs)
+        return _result()
+
+    dispatcher = Dispatcher(
+        job_repository=fake,
+        lease_duration_seconds=300,
+        worker_poll_interval_seconds=2.0,
+        lease_heartbeat_interval_seconds=60.0,
+        analysis_runner=run_analysis,
+    )
+
+    # when
+    dispatcher._process_next(lease_duration_seconds=300, heartbeat_interval_seconds=60)
+
+    # then
+    assert received["presentation_title"] == "면접 발표 연습"
+    assert received["practice_type_code"] == "INTERVIEW"
+
+
 def test_dispatcher_discards_result_when_lease_is_lost_during_analysis():
     claim = _claim()
     fake = _FakeJobRepository(claim=claim, renew_result=False)

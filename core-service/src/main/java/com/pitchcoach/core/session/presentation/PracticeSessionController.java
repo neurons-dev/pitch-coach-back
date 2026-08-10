@@ -11,11 +11,9 @@ import com.pitchcoach.core.session.presentation.dto.UpdatePracticeSessionTitleRe
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -26,7 +24,6 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/practice-sessions")
 @RequiredArgsConstructor
-@Validated
 public class PracticeSessionController {
 
     private final CreatePracticeSessionService createPracticeSessionService;
@@ -64,15 +61,14 @@ public class PracticeSessionController {
         return ResponseEntity.ok(updatePracticeSessionTitleService.update(userId, sessionId, request));
     }
 
-    @Operation(summary = "발표 연습 세션 음성 파일 업로드", description = "본인 소유의 발표 연습 세션에 녹음된 음성 파일을 업로드합니다.")
+    @Operation(summary = "발표 연습 세션 음성 파일 업로드", description = "본인 소유의 발표 연습 세션에 녹음된 음성 파일을 업로드합니다. 녹음 길이는 서버가 파일에서 직접 추출합니다.")
     @PostMapping("/{sessionId}/audio")
     public ResponseEntity<PracticeSessionResponse> uploadAudio(
             @AuthenticationPrincipal Long userId,
             @PathVariable UUID sessionId,
-            @RequestParam("file") MultipartFile file,
-            @RequestParam("durationMs") @Positive long durationMs
+            @RequestParam("file") MultipartFile file
     ) {
-        return ResponseEntity.ok(uploadPracticeSessionAudioService.upload(userId, sessionId, file, durationMs));
+        return ResponseEntity.ok(uploadPracticeSessionAudioService.upload(userId, sessionId, file));
     }
 
     @Operation(summary = "발표 분석 요청", description = "본인 소유의 발표 연습 세션에 대해 analysis-service에 분석을 요청합니다.")

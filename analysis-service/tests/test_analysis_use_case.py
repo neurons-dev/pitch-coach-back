@@ -18,6 +18,7 @@ from app.domain.entities import AnalysisResultInput, PronunciationAssessment
 from app.domain.errors import AnalysisError
 from app.infrastructure.audio.normalizer import FfmpegAudioNormalizer
 from app.infrastructure.audio.transcriber import FasterWhisperTranscriber
+from app.infrastructure.feedback.template_generator import TemplateFeedbackGenerator
 from app.infrastructure.pronunciation.local import LocalPronunciationAssessor
 
 
@@ -102,6 +103,7 @@ class TestAnalysisUseCaseFakeProviders:
             audio_normalizer=normalizer or _FakeAudioNormalizer(normalized_path),
             speech_transcriber=transcriber or _FakeSpeechTranscriber(_transcript()),
             pronunciation_assessor=pronunciation_assessor or _FakePronunciationAssessor(),
+            feedback_generator=TemplateFeedbackGenerator(),
             pipeline_version="audio-pipeline-v1",
         )
         return use_case, downloaded_path, normalized_path
@@ -121,6 +123,8 @@ class TestAnalysisUseCaseFakeProviders:
             "SPEED", "FILLER", "STRUCTURE", "DELIVERY", "PRONUNCIATION", "FLUENCY",
         }
         assert result.feedback_items[0].item_type == "summary"
+        assert result.model_info["feedbackPromptVersion"] == "template-feedback-v1"
+        assert result.model_info["feedbackFallbackReason"] is None
 
     def test_run_cleans_up_downloaded_and_normalized_files_on_success(self, tmp_path: Path):
         use_case, downloaded_path, normalized_path = self._use_case(tmp_path=tmp_path)
@@ -230,6 +234,7 @@ def test_end_to_end_with_real_ffmpeg_and_whisper(tmp_path: Path):
         audio_normalizer=FfmpegAudioNormalizer(),
         speech_transcriber=FasterWhisperTranscriber(settings=_settings(whisper_model_size="tiny")),
         pronunciation_assessor=LocalPronunciationAssessor(),
+        feedback_generator=TemplateFeedbackGenerator(),
         pipeline_version="audio-pipeline-v1",
     )
 
