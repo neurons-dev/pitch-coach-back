@@ -5,6 +5,7 @@ from pathlib import Path
 from app.domain.entities import (
     MetricCalculationInput,
     MetricScoreInput,
+    StructureAnalysisResult,
     TranscriptSegmentFeatures,
     TranscriptWordFeatures,
 )
@@ -24,7 +25,6 @@ from app.domain.metrics import (
     calc_speech_silence_ms,
     calc_speed,
     calc_structure,
-    detect_structure_signals,
 )
 from app.infrastructure.pronunciation.local import LocalPronunciationAssessor
 
@@ -247,55 +247,64 @@ class TestCalcFiller:
         assert result.details["promptVersion"] == "llm-filler-v2"
 
 
+def _structure_analysis(
+    *,
+    score: int = 80,
+    intro: bool = True,
+    body: bool = True,
+    conclusion: bool = True,
+    reasoning: str = "도입, 본론, 결론이 모두 확인됩니다.",
+    analyzer: str = "openai",
+    intro_evidence: str | None = "안녕하세요",
+    body_evidence: str | None = "본론 내용",
+    conclusion_evidence: str | None = "마지막으로 정리하면",
+    model: str | None = "gpt-4o-mini",
+    prompt_version: str | None = "llm-structure-v1",
+) -> StructureAnalysisResult:
+    return StructureAnalysisResult(
+        score=score,
+        intro=intro,
+        body=body,
+        conclusion=conclusion,
+        reasoning=reasoning,
+        analyzer=analyzer,
+        intro_evidence=intro_evidence,
+        body_evidence=body_evidence,
+        conclusion_evidence=conclusion_evidence,
+        model=model,
+        prompt_version=prompt_version,
+    )
+
+
 class TestCalcStructure:
-    def test_all_markers_present_scores_100(self):
-        text = "안녕하세요 오늘은 그리고 예를 들어 마지막으로 정리하면"
-        result = calc_structure(_calc_input(text, duration_ms=10_000))
-        assert result.score == 100
-
-    def test_no_markers_scores_40(self):
-        result = calc_structure(_calc_input("발표 내용입니다", duration_ms=10_000))
-        assert result.score == 40
-
-    def test_empty_text_scores_40(self):
-        result = calc_structure(_calc_input("", duration_ms=10_000))
-        assert result.score == 40
-
-    def test_markers_in_correct_temporal_position_score_full(self):
-        segments = [
-            _segment(0, 1000, text="안녕하세요 오늘은"),
-            _segment(4000, 5000, text="그리고 예를 들어"),
-            _segment(9000, 10000, text="마지막으로 정리하면"),
-        ]
-        full_text = " ".join(s.text for s in segments)
-        result = calc_structure(_calc_input(full_text, 10_000, segments))
-        assert result.score == 100
-
-    def test_conclusion_marker_said_early_does_not_count_as_conclusion(self):
-        segments = [
-            _segment(0, 1000, text="마지막으로 시작하겠습니다"),
-            _segment(9000, 10000, text="이야기를 마칩니다"),
-        ]
-        full_text = " ".join(s.text for s in segments)
-        result = calc_structure(_calc_input(full_text, 10_000, segments))
-        assert result.score == 40
-
-    def test_detection_exposes_structure_signals_without_changing_score(self):
+    def test_maps_analysis_result_to_metric_score(self):
         # given
-        segments = [
-            _segment(0, 1000, text="안녕하세요 오늘은"),
-            _segment(4000, 5000, text="그리고 예를 들어"),
-            _segment(9000, 10000, text="마지막으로 정리하면"),
-        ]
-        calc_input = _calc_input(" ".join(segment.text for segment in segments), 10_000, segments)
+        analysis = _structure_analysis(score=85, conclusion=False, conclusion_evidence=None)
 
         # when
-        signals = detect_structure_signals(calc_input)
-        score = calc_structure(calc_input)
+        result = calc_structure(analysis)
 
         # then
-        assert (signals.intro, signals.body, signals.conclusion) == (True, True, True)
-        assert score.score == 100
+        assert result.metric_code == "STRUCTURE"
+        assert result.score == 85
+        assert result.details["intro"] is True
+        assert result.details["body"] is True
+        assert result.details["conclusion"] is False
+        assert result.details["conclusionEvidence"] is None
+        assert result.details["reasoning"] == analysis.reasoning
+        assert result.details["analyzer"] == "openai"
+        assert result.details["model"] == "gpt-4o-mini"
+        assert result.details["promptVersion"] == "llm-structure-v1"
+
+    def test_score_is_clamped_to_valid_range(self):
+        # given
+        analysis = _structure_analysis(score=150)
+
+        # when
+        result = calc_structure(analysis)
+
+        # then
+        assert result.score == 100
 
 
 class TestCalcDelivery:
@@ -387,7 +396,11 @@ class TestCalcAllMetrics:
     def test_returns_six_metrics_including_pronunciation(self):
         segments = [_segment(0, 1000), _segment(1000, 2000)]
         pronunciation_metric = MetricScoreInput(metric_code="PRONUNCIATION", score=80)
-        metrics = calc_all_metrics(_calc_input("안녕하세요", 2000, segments), pronunciation_metric)
+        metrics = calc_all_metrics(
+            _calc_input("안녕하세요", 2000, segments),
+            pronunciation_metric,
+            structure_analysis=_structure_analysis(),
+        )
         codes = {m.metric_code for m in metrics}
         assert codes == {"SPEED", "FILLER", "STRUCTURE", "DELIVERY", "PRONUNCIATION", "FLUENCY"}
 
@@ -398,6 +411,7 @@ class TestCalcAllMetrics:
         metrics = calc_all_metrics(
             _calc_input("안녕하세요", 2000, segments),
             pronunciation_metric,
+            structure_analysis=_structure_analysis(),
             fluency_override=fluency_override,
         )
         fluency = next(m for m in metrics if m.metric_code == "FLUENCY")

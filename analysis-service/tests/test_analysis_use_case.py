@@ -14,7 +14,7 @@ import pytest
 from app.application.analysis.analysis_use_case import AnalysisUseCase
 from app.core.config import Settings
 from app.domain.audio import DownloadedAudio, Transcript, TranscriptSegment, TranscriptWord
-from app.domain.entities import AnalysisResultInput, PronunciationAssessment
+from app.domain.entities import AnalysisResultInput, PronunciationAssessment, StructureAnalysisResult
 from app.domain.errors import AnalysisError
 from app.infrastructure.audio.normalizer import FfmpegAudioNormalizer
 from app.infrastructure.audio.transcriber import FasterWhisperTranscriber
@@ -80,6 +80,24 @@ class _FailingPronunciationAssessor:
         raise AnalysisError(code="PRONUNCIATION_PROVIDER_FAILED", message="boom", retryable=True)
 
 
+class _FakeStructureAnalyzer:
+    def __init__(self) -> None:
+        self.analyze_calls: list[tuple] = []
+
+    def analyze(self, calc_input, *, practice_type_code=None, target_duration_sec=None):
+        self.analyze_calls.append((calc_input, practice_type_code, target_duration_sec))
+        return StructureAnalysisResult(
+            score=80,
+            intro=True,
+            body=True,
+            conclusion=True,
+            reasoning="테스트용 고정 결과",
+            analyzer="fake",
+            model="fake-model",
+            prompt_version="fake-v1",
+        )
+
+
 def _transcript() -> Transcript:
     return Transcript(
         text="안녕하세요 오늘은 발표를 시작하겠습니다",
@@ -95,7 +113,14 @@ def _transcript() -> Transcript:
 
 class TestAnalysisUseCaseFakeProviders:
     def _use_case(
-        self, *, tmp_path: Path, storage=None, normalizer=None, transcriber=None, pronunciation_assessor=None
+        self,
+        *,
+        tmp_path: Path,
+        storage=None,
+        normalizer=None,
+        transcriber=None,
+        pronunciation_assessor=None,
+        structure_analyzer=None,
     ) -> tuple[AnalysisUseCase, Path, Path]:
         downloaded_path = tmp_path / "downloaded.bin"
         normalized_path = tmp_path / "normalized.wav"
@@ -106,6 +131,7 @@ class TestAnalysisUseCaseFakeProviders:
             pronunciation_assessor=pronunciation_assessor or _FakePronunciationAssessor(),
             feedback_generator=TemplateFeedbackGenerator(),
             filler_detector=ConservativeFillerDetector(),
+            structure_analyzer=structure_analyzer or _FakeStructureAnalyzer(),
             pipeline_version="audio-pipeline-v1",
         )
         return use_case, downloaded_path, normalized_path
@@ -129,6 +155,33 @@ class TestAnalysisUseCaseFakeProviders:
         assert result.model_info["feedbackFallbackReason"] is None
         assert result.model_info["fillerDetector"] == "conservative-v1"
         assert result.model_info["fillerModel"] is None
+        assert result.model_info["structureAnalyzer"] == "fake"
+        assert result.model_info["structureModel"] == "fake-model"
+        assert result.model_info["structurePromptVersion"] == "fake-v1"
+        structure = next(m for m in result.metric_scores if m.metric_code == "STRUCTURE")
+        assert structure.score == 80
+        assert structure.details["analyzer"] == "fake"
+
+    def test_run_passes_practice_type_and_target_duration_to_structure_analyzer(
+        self, tmp_path: Path
+    ):
+        # given
+        structure_analyzer = _FakeStructureAnalyzer()
+        use_case, _, _ = self._use_case(tmp_path=tmp_path, structure_analyzer=structure_analyzer)
+
+        # when
+        use_case.run(
+            audio_object_key="sessions/x/y.wav",
+            analysis_version="v1",
+            practice_type_code="INTERVIEW",
+            target_duration_sec=300,
+        )
+
+        # then
+        assert len(structure_analyzer.analyze_calls) == 1
+        _, practice_type_code, target_duration_sec = structure_analyzer.analyze_calls[0]
+        assert practice_type_code == "INTERVIEW"
+        assert target_duration_sec == 300
 
     def test_run_keeps_filler_positions_timestamps_and_reason_in_metric_details(
         self, tmp_path: Path
@@ -288,6 +341,7 @@ def test_end_to_end_with_real_ffmpeg_and_whisper(tmp_path: Path):
         pronunciation_assessor=LocalPronunciationAssessor(),
         feedback_generator=TemplateFeedbackGenerator(),
         filler_detector=ConservativeFillerDetector(),
+        structure_analyzer=_FakeStructureAnalyzer(),
         pipeline_version="audio-pipeline-v1",
     )
 

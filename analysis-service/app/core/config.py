@@ -80,6 +80,8 @@ class Settings(BaseSettings):
     filler_detector_model: str = "gpt-4o"
     filler_detector_timeout_seconds: float = Field(default=15.0, gt=0)
 
+    structure_analyzer_timeout_seconds: float = Field(default=20.0, gt=0)
+
     def db_pool_size(self, role: Literal["api", "worker"]) -> int:
         if role == "api":
             return self.api_db_pool_size

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Literal
 
 from pydantic import Field
 
@@ -16,6 +17,7 @@ class AnalysisJobCreateRequest(CamelModel):
     audio_content_type: str | None = None
     audio_size_bytes: int | None = None
     duration_ms: int | None = None
+    target_duration_sec: Literal[60, 180, 300, 600] | None = None
 
 
 class AnalysisJobCreateResponse(CamelModel):

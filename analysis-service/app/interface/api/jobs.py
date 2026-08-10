@@ -71,6 +71,7 @@ def create_analysis_job(
             duration_ms=body.duration_ms,
             presentation_title=body.title,
             practice_type_code=body.practice_type_code,
+            target_duration_sec=body.target_duration_sec,
         )
     except IdempotencyKeyConflictError as exc:
         raise ApiException(

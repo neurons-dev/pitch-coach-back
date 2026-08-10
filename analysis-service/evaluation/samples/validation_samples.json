@@ -298,6 +298,60 @@
         "usage": "로컬 파이프라인 검증용. Microsoft 음성 사용 조건 확인 전 재배포 금지",
         "useForPronunciationAccuracy": false
       }
+    },
+    {
+      "sampleId": "structure-short-pitch-implicit-conclusion",
+      "title": "재고 관리 자동화 솔루션 피칭",
+      "practiceTypeCode": "PT",
+      "targetDurationSec": 60,
+      "transcript": "안녕하세요, 저희 팀은 재고 관리 자동화 솔루션을 만들고 있습니다. 소상공인들이 매일 재고를 손으로 세는 데 시간을 낭비하고 있는데, 저희 앱은 카메라로 스캔만 하면 자동으로 재고를 기록합니다. 베타 테스트에서 재고 관리 시간을 70% 줄였습니다.",
+      "durationMs": 60000,
+      "segments": [
+        {
+          "startMs": 0,
+          "endMs": 20000,
+          "text": "안녕하세요, 저희 팀은 재고 관리 자동화 솔루션을 만들고 있습니다."
+        },
+        {
+          "startMs": 20000,
+          "endMs": 45000,
+          "text": "소상공인들이 매일 재고를 손으로 세는 데 시간을 낭비하고 있는데, 저희 앱은 카메라로 스캔만 하면 자동으로 재고를 기록합니다."
+        },
+        {
+          "startMs": 45000,
+          "endMs": 60000,
+          "text": "베타 테스트에서 재고 관리 시간을 70% 줄였습니다."
+        }
+      ],
+      "expectedFillers": [],
+      "normalExpressions": [],
+      "structure": {
+        "intro": {
+          "present": true,
+          "evidence": ["안녕하세요", "저희 팀은 재고 관리 자동화 솔루션을 만들고 있습니다"]
+        },
+        "body": {
+          "present": true,
+          "evidence": ["소상공인들이 매일 재고를 손으로 세는 데 시간을 낭비하고 있는데"]
+        },
+        "conclusion": {
+          "present": true,
+          "evidence": ["베타 테스트에서 재고 관리 시간을 70% 줄였습니다"]
+        },
+        "humanScore": 85
+      },
+      "pronunciation": {
+        "useForAccuracy": false,
+        "humanScores": [],
+        "note": "TTS 샘플은 파이프라인 동작 확인용이며 실제 발음 정확도의 정답으로 사용하지 않음"
+      },
+      "audio": {
+        "kind": "tts",
+        "path": "audio/generated/structure-short-pitch-implicit-conclusion.wav",
+        "source": "Microsoft Heami Desktop via Windows SAPI",
+        "usage": "로컬 파이프라인 검증용. Microsoft 음성 사용 조건 확인 전 재배포 금지",
+        "useForPronunciationAccuracy": false
+      }
     }
   ]
 }

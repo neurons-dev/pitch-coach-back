@@ -16,6 +16,7 @@ from app.infrastructure.db.session import DatabaseSessionProvider
 from app.infrastructure.feedback.factory import create_feedback_generator
 from app.infrastructure.filler.factory import create_filler_detector
 from app.infrastructure.pronunciation.factory import create_pronunciation_assessor
+from app.infrastructure.structure.factory import create_structure_analyzer
 
 logging.basicConfig(level=get_settings().log_level)
 logger = logging.getLogger(__name__)
@@ -48,6 +49,7 @@ def main() -> None:
         pronunciation_assessor=create_pronunciation_assessor(settings),
         feedback_generator=create_feedback_generator(settings),
         filler_detector=create_filler_detector(settings),
+        structure_analyzer=create_structure_analyzer(settings),
         pipeline_version=settings.pipeline_version,
     )
     dispatcher = Dispatcher(

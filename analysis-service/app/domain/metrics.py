@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
-from app.domain.entities import MetricCalculationInput, MetricScoreInput
+from app.domain.entities import MetricCalculationInput, MetricScoreInput, StructureAnalysisResult
 from app.domain.filler import (
     detect_conservative_filler_occurrences,
     filler_occurrence_details,
@@ -11,22 +9,9 @@ from app.domain.filler_detector import FillerDetectionResult
 
 SCORING_RULE_VERSION = "coach-ko-v2"
 
-_STRUCTURE_MARKERS = {
-    "intro": ("안녕하세요", "먼저", "오늘은"),
-    "body": ("그리고", "또한", "예를 들어"),
-    "conclusion": ("마지막으로", "결론적으로", "정리하면", "이상입니다"),
-}
-
 _SPEECH_SPEED_TARGET_CPM = (300, 450)
 _LONG_PAUSE_THRESHOLD_MS = 2000
 _FILLER_PENALTY_PER_MINUTE = 10
-
-
-@dataclass(frozen=True)
-class StructureSignals:
-    intro: bool
-    body: bool
-    conclusion: bool
 
 
 def _clamp(value: float, low: int = 0, high: int = 100) -> int:
@@ -81,35 +66,25 @@ def calc_filler(
     )
 
 
-def detect_structure_signals(calc_input: MetricCalculationInput) -> StructureSignals:
-    segments = calc_input.segments
-    if not segments:
-        text = calc_input.text
-        return StructureSignals(
-            intro=any(marker in text for marker in _STRUCTURE_MARKERS["intro"]),
-            body=any(marker in text for marker in _STRUCTURE_MARKERS["body"]),
-            conclusion=any(marker in text for marker in _STRUCTURE_MARKERS["conclusion"]),
-        )
-
-    total_ms = max(calc_input.duration_ms, 1)
-    early_cutoff = total_ms / 3
-    late_cutoff = total_ms * 2 / 3
-
-    intro_text = " ".join(s.text for s in segments if s.start_ms < early_cutoff)
-    conclusion_text = " ".join(s.text for s in segments if s.start_ms >= late_cutoff)
-    body_text = calc_input.text
-
-    return StructureSignals(
-        intro=any(marker in intro_text for marker in _STRUCTURE_MARKERS["intro"]),
-        body=any(marker in body_text for marker in _STRUCTURE_MARKERS["body"]),
-        conclusion=any(marker in conclusion_text for marker in _STRUCTURE_MARKERS["conclusion"]),
+def calc_structure(analysis: StructureAnalysisResult) -> MetricScoreInput:
+    return MetricScoreInput(
+        metric_code="STRUCTURE",
+        score=_clamp(analysis.score),
+        raw_value=None,
+        unit=None,
+        details={
+            "intro": analysis.intro,
+            "body": analysis.body,
+            "conclusion": analysis.conclusion,
+            "introEvidence": analysis.intro_evidence,
+            "bodyEvidence": analysis.body_evidence,
+            "conclusionEvidence": analysis.conclusion_evidence,
+            "reasoning": analysis.reasoning,
+            "analyzer": analysis.analyzer,
+            "model": analysis.model,
+            "promptVersion": analysis.prompt_version,
+        },
     )
-
-
-def calc_structure(calc_input: MetricCalculationInput) -> MetricScoreInput:
-    signals = detect_structure_signals(calc_input)
-    hits = sum((signals.intro, signals.body, signals.conclusion))
-    return MetricScoreInput(metric_code="STRUCTURE", score=_clamp(40 + hits * 20), raw_value=None, unit=None)
 
 
 def calc_delivery(calc_input: MetricCalculationInput) -> MetricScoreInput:
@@ -155,13 +130,14 @@ def calc_all_metrics(
     calc_input: MetricCalculationInput,
     pronunciation_metric: MetricScoreInput,
     *,
+    structure_analysis: StructureAnalysisResult,
     filler_detection: FillerDetectionResult | None = None,
     fluency_override: MetricScoreInput | None = None,
 ) -> list[MetricScoreInput]:
     return [
         calc_speed(calc_input),
         calc_filler(calc_input, filler_detection),
-        calc_structure(calc_input),
+        calc_structure(structure_analysis),
         calc_delivery(calc_input),
         pronunciation_metric,
         fluency_override or calc_fluency(calc_input),

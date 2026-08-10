@@ -53,6 +53,7 @@ class ClaimedJob:
     lease_token: uuid.UUID
     presentation_title: str | None = None
     practice_type_code: str | None = None
+    target_duration_sec: int | None = None
 
 
 class JobCreationDisposition(str, Enum):
@@ -132,6 +133,21 @@ class FeedbackGenerationResult:
     model: str | None = None
     prompt_version: str | None = None
     fallback_reason: str | None = None
+
+
+@dataclass(frozen=True)
+class StructureAnalysisResult:
+    score: int
+    intro: bool
+    body: bool
+    conclusion: bool
+    reasoning: str
+    analyzer: str
+    intro_evidence: str | None = None
+    body_evidence: str | None = None
+    conclusion_evidence: str | None = None
+    model: str | None = None
+    prompt_version: str | None = None
 
 
 @dataclass(frozen=True)

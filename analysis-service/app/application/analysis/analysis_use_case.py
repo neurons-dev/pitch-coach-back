@@ -17,6 +17,7 @@ from app.domain.metrics import (
     calc_speech_silence_ms,
 )
 from app.domain.pronunciation import PronunciationAssessor
+from app.domain.structure_analyzer import StructureAnalyzer
 
 _DEFAULT_LANGUAGE = "ko-KR"
 
@@ -31,6 +32,7 @@ class AnalysisUseCase:
         pronunciation_assessor: PronunciationAssessor,
         feedback_generator: FeedbackGenerator,
         filler_detector: FillerDetector,
+        structure_analyzer: StructureAnalyzer,
         pipeline_version: str,
         language: str = _DEFAULT_LANGUAGE,
     ) -> None:
@@ -40,6 +42,7 @@ class AnalysisUseCase:
         self._pronunciation_assessor = pronunciation_assessor
         self._feedback_generator = feedback_generator
         self._filler_detector = filler_detector
+        self._structure_analyzer = structure_analyzer
         self._pipeline_version = pipeline_version
         self._language = language
 
@@ -50,6 +53,7 @@ class AnalysisUseCase:
         analysis_version: str,
         presentation_title: str | None = None,
         practice_type_code: str | None = None,
+        target_duration_sec: int | None = None,
     ) -> AnalysisResultInput:
         downloaded = self._audio_storage.download(audio_object_key)
         try:
@@ -108,9 +112,15 @@ class AnalysisUseCase:
             )
 
         filler_detection = self._filler_detector.detect(calc_input)
+        structure_result = self._structure_analyzer.analyze(
+            calc_input,
+            practice_type_code=practice_type_code,
+            target_duration_sec=target_duration_sec,
+        )
         metrics = calc_all_metrics(
             calc_input,
             pronunciation_metric,
+            structure_analysis=structure_result,
             filler_detection=filler_detection,
             fluency_override=fluency_override,
         )
@@ -148,6 +158,9 @@ class AnalysisUseCase:
                 "fillerModel": filler_detection.model,
                 "fillerPromptVersion": filler_detection.prompt_version,
                 "fillerFallbackReason": filler_detection.fallback_reason,
+                "structureAnalyzer": structure_result.analyzer,
+                "structureModel": structure_result.model,
+                "structurePromptVersion": structure_result.prompt_version,
             },
             metric_scores=metrics,
             feedback_items=feedback_result.feedback_items,
