@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from app.domain.entities import (
     MetricCalculationInput,
     MetricScoreInput,
@@ -10,7 +8,6 @@ from app.domain.entities import (
     TranscriptWordFeatures,
 )
 from app.domain.filler import (
-    detect_conservative_filler_occurrences,
     find_filler_candidates,
     occurrence_from_candidate,
 )
@@ -26,7 +23,6 @@ from app.domain.metrics import (
     calc_speed,
     calc_structure,
 )
-from app.infrastructure.pronunciation.local import LocalPronunciationAssessor
 
 
 def _word(
@@ -84,22 +80,30 @@ class TestCalcSpeed:
         assert 0 <= result.score <= 100
 
 
+def _detection_for_words(calc_input: MetricCalculationInput, words: set[str]) -> FillerDetectionResult:
+    occurrences = [
+        occurrence_from_candidate(candidate, reason="LLM_JUDGED", evidence="테스트용 판단 근거")
+        for candidate in find_filler_candidates(calc_input)
+        if candidate.text in words
+    ]
+    return FillerDetectionResult(occurrences=occurrences, detector="openai")
+
+
 class TestCalcFiller:
     def test_no_filler_words_scores_100(self):
-        result = calc_filler(_calc_input("안녕하세요 오늘은 발표를 시작하겠습니다", duration_ms=10_000))
+        calc_input = _calc_input("안녕하세요 오늘은 발표를 시작하겠습니다", duration_ms=10_000)
+        result = calc_filler(calc_input, _detection_for_words(calc_input, set()))
         assert result.score == 100
         assert result.raw_value == 0.0
 
-    def test_counts_only_whole_word_matches(self):
-        result = calc_filler(_calc_input("그래서 그림을 그렸어요", duration_ms=10_000))
-        assert result.raw_value == 0.0
-
     def test_many_filler_words_clamped_to_zero(self):
-        result = calc_filler(_calc_input(" ".join(["음"] * 50), duration_ms=10_000))
+        calc_input = _calc_input(" ".join(["음"] * 50), duration_ms=10_000)
+        result = calc_filler(calc_input, _detection_for_words(calc_input, {"음"}))
         assert result.score == 0
 
     def test_empty_text_scores_100(self):
-        result = calc_filler(_calc_input("", duration_ms=10_000))
+        calc_input = _calc_input("", duration_ms=10_000)
+        result = calc_filler(calc_input, _detection_for_words(calc_input, set()))
         assert result.score == 100
 
     def test_zero_duration_short_utterance_is_handled(self):
@@ -107,7 +111,7 @@ class TestCalcFiller:
         calc_input = _calc_input("음", duration_ms=0)
 
         # when
-        result = calc_filler(calc_input)
+        result = calc_filler(calc_input, _detection_for_words(calc_input, {"음"}))
 
         # then
         assert result.raw_value == 1.0
@@ -116,39 +120,25 @@ class TestCalcFiller:
 
     def test_same_count_scores_better_over_longer_duration(self):
         text = "음 그래서 어 시작하겠습니다"
-        short = calc_filler(_calc_input(text, duration_ms=10_000))
-        long = calc_filler(_calc_input(text, duration_ms=300_000))
+        short_input = _calc_input(text, duration_ms=10_000)
+        long_input = _calc_input(text, duration_ms=300_000)
+        short = calc_filler(short_input, _detection_for_words(short_input, {"음", "어"}))
+        long = calc_filler(long_input, _detection_for_words(long_input, {"음", "어"}))
         assert long.score > short.score
         assert short.raw_value == long.raw_value == 2.0
 
-    def test_detection_exposes_exact_character_positions(self):
-        # given
-        text = "안녕하세요. 어 오늘은 음 발표를 시작합니다."
-        calc_input = _calc_input(text, duration_ms=10_000)
-
-        # when
-        occurrences = detect_conservative_filler_occurrences(calc_input)
-
-        # then
-        assert [(item.text, item.start_char, item.end_char) for item in occurrences] == [
-            ("어", 7, 8),
-            ("음", 13, 14),
-        ]
-
-    def test_contextual_words_are_candidates_but_not_counted_by_conservative_fallback(self):
+    def test_contextual_words_are_plain_candidates(self):
         # given
         text = "그 사람은 그 결과를 발표했습니다. 이제 새로운 기능을 설명하고 약간의 차이를 보겠습니다."
         calc_input = _calc_input(text, duration_ms=10_000)
 
         # when
         candidates = find_filler_candidates(calc_input)
-        occurrences = detect_conservative_filler_occurrences(calc_input)
 
         # then
         candidate_texts = [item.text for item in candidates]
         assert candidate_texts.count("그") == 2
         assert "이제" in candidate_texts
-        assert occurrences == []
 
     def test_candidate_contains_word_timestamp_and_pause(self):
         # given
@@ -182,16 +172,16 @@ class TestCalcFiller:
         assert candidate_texts.count("목표를") == 2
         assert "발" in candidate_texts
 
-    def test_repeated_sentences_keep_distinct_filler_positions(self):
+    def test_repeated_sentences_keep_distinct_candidate_positions(self):
         # given
         text = "음 발표를 시작합니다. 음 발표를 시작합니다."
         calc_input = _calc_input(text, duration_ms=5000)
 
         # when
-        occurrences = detect_conservative_filler_occurrences(calc_input)
+        candidates = [c for c in find_filler_candidates(calc_input) if c.text == "음"]
 
         # then
-        assert [(item.text, item.start_char) for item in occurrences] == [
+        assert [(item.text, item.start_char) for item in candidates] == [
             ("음", 0),
             ("음", text.rindex("음")),
         ]
@@ -360,58 +350,30 @@ class TestCalcFluency:
         assert result.details["longPauseCount"] == 19
 
 
-class TestLocalPronunciationAssessor:
-    def test_high_confidence_segments_score_high(self):
-        segments = [_segment(0, 1000, avg_logprob=-0.05), _segment(1000, 2000, avg_logprob=-0.02)]
-        result = LocalPronunciationAssessor().assess(
-            audio_path=Path("unused.wav"), calc_input=_calc_input("text", 2000, segments), language="ko-KR"
-        )
-        assert result.provider == "local"
-        assert result.pronunciation_score > 90
-        assert result.fluency_score is None
-        assert result.fallback_reason is None
-
-    def test_low_confidence_segments_score_low(self):
-        segments = [_segment(0, 1000, avg_logprob=-0.9)]
-        result = LocalPronunciationAssessor().assess(
-            audio_path=Path("unused.wav"), calc_input=_calc_input("text", 1000, segments), language="ko-KR"
-        )
-        assert result.pronunciation_score < 20
-
-    def test_no_segments_scores_default_70(self):
-        result = LocalPronunciationAssessor().assess(
-            audio_path=Path("unused.wav"), calc_input=_calc_input("text", 1000, []), language="ko-KR"
-        )
-        assert result.pronunciation_score == 70
-
-    def test_extreme_logprob_clamped_within_0_100(self):
-        segments = [_segment(0, 1000, avg_logprob=-5.0)]
-        result = LocalPronunciationAssessor().assess(
-            audio_path=Path("unused.wav"), calc_input=_calc_input("text", 1000, segments), language="ko-KR"
-        )
-        assert 0 <= result.pronunciation_score <= 100
-
-
 class TestCalcAllMetrics:
     def test_returns_six_metrics_including_pronunciation(self):
         segments = [_segment(0, 1000), _segment(1000, 2000)]
+        calc_input = _calc_input("안녕하세요", 2000, segments)
         pronunciation_metric = MetricScoreInput(metric_code="PRONUNCIATION", score=80)
         metrics = calc_all_metrics(
-            _calc_input("안녕하세요", 2000, segments),
+            calc_input,
             pronunciation_metric,
             structure_analysis=_structure_analysis(),
+            filler_detection=_detection_for_words(calc_input, set()),
         )
         codes = {m.metric_code for m in metrics}
         assert codes == {"SPEED", "FILLER", "STRUCTURE", "DELIVERY", "PRONUNCIATION", "FLUENCY"}
 
     def test_fluency_override_replaces_local_fluency_metric(self):
         segments = [_segment(0, 1000), _segment(1000, 2000)]
+        calc_input = _calc_input("안녕하세요", 2000, segments)
         pronunciation_metric = MetricScoreInput(metric_code="PRONUNCIATION", score=80)
         fluency_override = MetricScoreInput(metric_code="FLUENCY", score=99, details={"provider": "azure"})
         metrics = calc_all_metrics(
-            _calc_input("안녕하세요", 2000, segments),
+            calc_input,
             pronunciation_metric,
             structure_analysis=_structure_analysis(),
+            filler_detection=_detection_for_words(calc_input, set()),
             fluency_override=fluency_override,
         )
         fluency = next(m for m in metrics if m.metric_code == "FLUENCY")

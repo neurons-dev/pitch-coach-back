@@ -13,7 +13,6 @@ class FillerDetectionResult:
     occurrences: list[FillerOccurrence] = field(default_factory=list)
     model: str | None = None
     prompt_version: str | None = None
-    fallback_reason: str | None = None
 
 
 class FillerDetector(Protocol):

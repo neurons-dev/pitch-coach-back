@@ -14,13 +14,42 @@ import pytest
 from app.application.analysis.analysis_use_case import AnalysisUseCase
 from app.core.config import Settings
 from app.domain.audio import DownloadedAudio, Transcript, TranscriptSegment, TranscriptWord
-from app.domain.entities import AnalysisResultInput, PronunciationAssessment, StructureAnalysisResult
+from app.domain.entities import (
+    AnalysisResultInput,
+    FeedbackGenerationResult,
+    FeedbackItemInput,
+    PronunciationAssessment,
+    StructureAnalysisResult,
+)
 from app.domain.errors import AnalysisError
+from app.domain.filler import FillerOccurrence
+from app.domain.filler_detector import FillerDetectionResult
 from app.infrastructure.audio.normalizer import FfmpegAudioNormalizer
 from app.infrastructure.audio.transcriber import FasterWhisperTranscriber
-from app.infrastructure.feedback.template_generator import TemplateFeedbackGenerator
-from app.infrastructure.filler.conservative_detector import ConservativeFillerDetector
-from app.infrastructure.pronunciation.local import LocalPronunciationAssessor
+
+
+class _FakeFeedbackGenerator:
+    def generate(
+        self, *, transcript_text, metrics, overall_score, presentation_title=None, practice_type_code=None
+    ) -> FeedbackGenerationResult:
+        return FeedbackGenerationResult(
+            coach_comment="테스트용 총평",
+            feedback_items=[
+                FeedbackItemInput(item_type="summary", title="총평", description="테스트용 총평")
+            ],
+            generator="fake",
+            prompt_version="fake-v1",
+        )
+
+
+class _FakeFillerDetector:
+    def __init__(self, occurrences: list[FillerOccurrence] | None = None) -> None:
+        self._occurrences = occurrences or []
+
+    def detect(self, calc_input) -> FillerDetectionResult:
+        return FillerDetectionResult(
+            occurrences=self._occurrences, detector="fake", model="fake-model", prompt_version="fake-v1"
+        )
 
 
 class _FakeAudioStorage:
@@ -121,6 +150,7 @@ class TestAnalysisUseCaseFakeProviders:
         transcriber=None,
         pronunciation_assessor=None,
         structure_analyzer=None,
+        filler_detector=None,
     ) -> tuple[AnalysisUseCase, Path, Path]:
         downloaded_path = tmp_path / "downloaded.bin"
         normalized_path = tmp_path / "normalized.wav"
@@ -129,8 +159,8 @@ class TestAnalysisUseCaseFakeProviders:
             audio_normalizer=normalizer or _FakeAudioNormalizer(normalized_path),
             speech_transcriber=transcriber or _FakeSpeechTranscriber(_transcript()),
             pronunciation_assessor=pronunciation_assessor or _FakePronunciationAssessor(),
-            feedback_generator=TemplateFeedbackGenerator(),
-            filler_detector=ConservativeFillerDetector(),
+            feedback_generator=_FakeFeedbackGenerator(),
+            filler_detector=filler_detector or _FakeFillerDetector(),
             structure_analyzer=structure_analyzer or _FakeStructureAnalyzer(),
             pipeline_version="audio-pipeline-v1",
         )
@@ -151,10 +181,9 @@ class TestAnalysisUseCaseFakeProviders:
             "SPEED", "FILLER", "STRUCTURE", "DELIVERY", "PRONUNCIATION", "FLUENCY",
         }
         assert result.feedback_items[0].item_type == "summary"
-        assert result.model_info["feedbackPromptVersion"] == "template-feedback-v1"
-        assert result.model_info["feedbackFallbackReason"] is None
-        assert result.model_info["fillerDetector"] == "conservative-v1"
-        assert result.model_info["fillerModel"] is None
+        assert result.model_info["feedbackPromptVersion"] == "fake-v1"
+        assert result.model_info["fillerDetector"] == "fake"
+        assert result.model_info["fillerModel"] == "fake-model"
         assert result.model_info["structureAnalyzer"] == "fake"
         assert result.model_info["structureModel"] == "fake-model"
         assert result.model_info["structurePromptVersion"] == "fake-v1"
@@ -205,9 +234,21 @@ class TestAnalysisUseCaseFakeProviders:
                 )
             ],
         )
+        occurrence = FillerOccurrence(
+            text="음",
+            start_char=0,
+            end_char=1,
+            reason="LLM_JUDGED",
+            evidence="테스트용 판단 근거",
+            start_ms=0,
+            end_ms=200,
+            preceding_pause_ms=0,
+            following_pause_ms=500,
+        )
         use_case, _, _ = self._use_case(
             tmp_path=tmp_path,
             transcriber=_FakeSpeechTranscriber(transcript),
+            filler_detector=_FakeFillerDetector([occurrence]),
         )
 
         # when
@@ -226,10 +267,10 @@ class TestAnalysisUseCaseFakeProviders:
             "endMs": 200,
             "precedingPauseMs": 0,
             "followingPauseMs": 500,
-            "reason": "HIGH_CONFIDENCE_MARKER",
-            "evidence": "LLM 장애 시 사용하는 보수적 필러 표지",
+            "reason": "LLM_JUDGED",
+            "evidence": "테스트용 판단 근거",
         }
-        assert filler.details["detector"] == "conservative-v1"
+        assert filler.details["detector"] == "fake"
 
     def test_run_cleans_up_downloaded_and_normalized_files_on_success(self, tmp_path: Path):
         use_case, downloaded_path, normalized_path = self._use_case(tmp_path=tmp_path)
@@ -338,9 +379,9 @@ def test_end_to_end_with_real_ffmpeg_and_whisper(tmp_path: Path):
         audio_storage=_LocalFileAudioStorage(raw_audio),
         audio_normalizer=FfmpegAudioNormalizer(),
         speech_transcriber=FasterWhisperTranscriber(settings=_settings(whisper_model_size="tiny")),
-        pronunciation_assessor=LocalPronunciationAssessor(),
-        feedback_generator=TemplateFeedbackGenerator(),
-        filler_detector=ConservativeFillerDetector(),
+        pronunciation_assessor=_FakePronunciationAssessor(),
+        feedback_generator=_FakeFeedbackGenerator(),
+        filler_detector=_FakeFillerDetector(),
         structure_analyzer=_FakeStructureAnalyzer(),
         pipeline_version="audio-pipeline-v1",
     )

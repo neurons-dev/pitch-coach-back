@@ -102,7 +102,6 @@ class PronunciationAssessment:
     pronunciation_score: int
     fluency_score: int | None = None
     accuracy_score: int | None = None
-    fallback_reason: str | None = None
     raw_response: dict = field(default_factory=dict)
 
 
@@ -132,7 +131,6 @@ class FeedbackGenerationResult:
     generator: str
     model: str | None = None
     prompt_version: str | None = None
-    fallback_reason: str | None = None
 
 
 @dataclass(frozen=True)

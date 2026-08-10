@@ -6,15 +6,13 @@ import pytest
 from pydantic import ValidationError
 
 from app.core.config import Settings
-from app.domain.entities import FeedbackGenerationResult, FeedbackItemInput, MetricScoreInput
+from app.domain.entities import MetricScoreInput
 from app.domain.errors import AnalysisError
 from app.infrastructure.feedback.factory import create_feedback_generator
-from app.infrastructure.feedback.fallback_generator import FallbackFeedbackGenerator
 from app.infrastructure.feedback.openai_generator import (
     OpenAiFeedbackGenerator,
     _FeedbackResponseSchema,
 )
-from app.infrastructure.feedback.template_generator import TemplateFeedbackGenerator
 
 
 def _metrics() -> list[MetricScoreInput]:
@@ -59,25 +57,6 @@ def _transcript_evidence(quote: str) -> dict:
         "metric_unit": None,
         "transcript_quote": quote,
     }
-
-
-class TestTemplateFeedbackGenerator:
-    def test_generate_returns_template_result(self):
-        # given
-        generator = TemplateFeedbackGenerator()
-
-        # when
-        result = generator.generate(
-            transcript_text="안녕하세요 오늘은 발표를 시작하겠습니다",
-            metrics=_metrics(),
-            overall_score=80,
-        )
-
-        # then
-        assert result.generator == "template"
-        assert result.prompt_version == "template-feedback-v1"
-        assert result.coach_comment
-        assert result.feedback_items[0].item_type == "summary"
 
 
 class TestOpenAiFeedbackGenerator:
@@ -364,99 +343,21 @@ class TestOpenAiFeedbackGenerator:
             )
 
 
-class TestFallbackFeedbackGenerator:
-    def test_uses_primary_result_when_primary_succeeds(self):
-        # given
-        primary = MagicMock()
-        primary.generate.return_value = FeedbackGenerationResult(
-            coach_comment="primary", feedback_items=[], generator="openai"
-        )
-        fallback = MagicMock()
-
-        # when
-        result = FallbackFeedbackGenerator(primary=primary, fallback=fallback).generate(
-            transcript_text="t", metrics=_metrics(), overall_score=80
-        )
-
-        # then
-        assert result.coach_comment == "primary"
-        fallback.generate.assert_not_called()
-
-    def test_falls_back_to_template_when_primary_raises(self):
-        # given
-        primary = MagicMock()
-        primary.generate.side_effect = AnalysisError(
-            code="FEEDBACK_GENERATION_FAILED", message="boom", retryable=True
-        )
-        fallback = MagicMock()
-        fallback.generate.return_value = FeedbackGenerationResult(
-            coach_comment="template", feedback_items=[], generator="template"
-        )
-
-        # when
-        result = FallbackFeedbackGenerator(primary=primary, fallback=fallback).generate(
-            transcript_text="t", metrics=_metrics(), overall_score=80
-        )
-
-        # then
-        assert result.coach_comment == "template"
-        assert result.fallback_reason == "FEEDBACK_GENERATION_FAILED"
-
-    def test_does_not_hide_unexpected_programming_error(self):
-        # given
-        primary = MagicMock()
-        primary.generate.side_effect = RuntimeError("bug")
-        fallback = MagicMock()
-
-        # when / then
-        with pytest.raises(RuntimeError, match="bug"):
-            FallbackFeedbackGenerator(primary=primary, fallback=fallback).generate(
-                transcript_text="t", metrics=_metrics(), overall_score=80
-            )
-
-        fallback.generate.assert_not_called()
-
-
 class TestCreateFeedbackGenerator:
-    def test_template_provider_returns_template_generator(self):
+    def test_without_key_raises_config_error(self):
         # given
-        settings = _settings(feedback_generator="template")
-
-        # when
-        generator = create_feedback_generator(settings)
-
-        # then
-        assert isinstance(generator, TemplateFeedbackGenerator)
-
-    def test_openai_without_key_raises_config_error(self):
-        # given
-        settings = _settings(feedback_generator="openai")
+        settings = _settings()
 
         # when / then
         with pytest.raises(ValueError, match="OPENAI_API_KEY"):
             create_feedback_generator(settings)
 
-    def test_openai_with_key_returns_fallback_wrapped_generator(self):
+    def test_with_key_returns_openai_generator(self):
         # given
-        settings = _settings(feedback_generator="openai", openai_api_key="sk-test")
+        settings = _settings(openai_api_key="sk-test")
 
         # when
         generator = create_feedback_generator(settings)
 
         # then
-        assert isinstance(generator, FallbackFeedbackGenerator)
-
-    def test_unknown_provider_raises_config_error(self):
-        # given
-        settings = _settings(feedback_generator="bogus")
-
-        # when / then
-        with pytest.raises(ValueError, match="알 수 없는"):
-            create_feedback_generator(settings)
-
-    def test_default_provider_is_template(self):
-        # given / when
-        settings = _settings()
-
-        # then
-        assert settings.feedback_generator == "template"
+        assert isinstance(generator, OpenAiFeedbackGenerator)
