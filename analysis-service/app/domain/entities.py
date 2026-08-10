@@ -72,11 +72,20 @@ class JobCreation:
 
 
 @dataclass(frozen=True)
+class TranscriptWordFeatures:
+    start_ms: int
+    end_ms: int
+    text: str
+    probability: float
+
+
+@dataclass(frozen=True)
 class TranscriptSegmentFeatures:
     start_ms: int
     end_ms: int
     text: str
     avg_logprob: float
+    words: list[TranscriptWordFeatures] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

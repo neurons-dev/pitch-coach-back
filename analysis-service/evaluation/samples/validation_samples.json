@@ -240,6 +240,64 @@
         "usage": "로컬 파이프라인 검증용. Microsoft 음성 사용 조건 확인 전 재배포 금지",
         "useForPronunciationAccuracy": false
       }
+    },
+    {
+      "sampleId": "filler-colloquial-markers",
+      "title": "신규 기능 반응 조사",
+      "practiceTypeCode": "PRESENTATION",
+      "transcript": "안녕하세요. 그니까 오늘은 신규 기능 출시 결과를 말씀드리겠습니다. 먼저 사용자 반응은 뭐 대체로 긍정적이었습니다. 인제 다음으로 개선이 필요한 부분을 살펴보면, 막 로딩 속도가 느리다는 의견이 많았습니다. 마지막으로 다음 분기 계획을 정리하면 성능 개선에 집중할 예정입니다. 이상입니다.",
+      "durationMs": 16000,
+      "segments": [
+        {
+          "startMs": 0,
+          "endMs": 4000,
+          "text": "안녕하세요. 그니까 오늘은 신규 기능 출시 결과를 말씀드리겠습니다."
+        },
+        {
+          "startMs": 4000,
+          "endMs": 11000,
+          "text": "먼저 사용자 반응은 뭐 대체로 긍정적이었습니다. 인제 다음으로 개선이 필요한 부분을 살펴보면, 막 로딩 속도가 느리다는 의견이 많았습니다."
+        },
+        {
+          "startMs": 11000,
+          "endMs": 16000,
+          "text": "마지막으로 다음 분기 계획을 정리하면 성능 개선에 집중할 예정입니다. 이상입니다."
+        }
+      ],
+      "expectedFillers": [
+        {"text": "그니까", "startChar": 7, "endChar": 10, "note": "문장 시작의 구어체 담화 표지(필러)"},
+        {"text": "뭐", "startChar": 49, "endChar": 50, "note": "완곡한 얼버무림 표현"},
+        {"text": "인제", "startChar": 65, "endChar": 67, "note": "구어체 담화 표지('이제'의 구어형)"},
+        {"text": "막", "startChar": 91, "endChar": 92, "note": "의미 없는 강조성 필러"}
+      ],
+      "normalExpressions": [],
+      "structure": {
+        "intro": {
+          "present": true,
+          "evidence": ["안녕하세요", "그니까 오늘은 신규 기능 출시 결과를 말씀드리겠습니다"]
+        },
+        "body": {
+          "present": true,
+          "evidence": ["먼저 사용자 반응은 뭐 대체로 긍정적이었습니다", "인제 다음으로 개선이 필요한 부분을 살펴보면"]
+        },
+        "conclusion": {
+          "present": true,
+          "evidence": ["마지막으로 다음 분기 계획을 정리하면", "이상입니다"]
+        },
+        "humanScore": 85
+      },
+      "pronunciation": {
+        "useForAccuracy": false,
+        "humanScores": [],
+        "note": "TTS 샘플은 파이프라인 동작 확인용이며 실제 발음 정확도의 정답으로 사용하지 않음"
+      },
+      "audio": {
+        "kind": "tts",
+        "path": "audio/generated/filler-colloquial-markers.wav",
+        "source": "Microsoft Heami Desktop via Windows SAPI",
+        "usage": "로컬 파이프라인 검증용. Microsoft 음성 사용 조건 확인 전 재배포 금지",
+        "useForPronunciationAccuracy": false
+      }
     }
   ]
 }

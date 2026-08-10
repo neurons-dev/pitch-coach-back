@@ -6,15 +6,22 @@ import json
 import math
 from pathlib import Path
 from statistics import mean
+from typing import Callable
 
+from app.core.config import get_settings
 from app.domain.entities import MetricCalculationInput, TranscriptSegmentFeatures
+from app.domain.filler import (
+    FillerOccurrence,
+    detect_conservative_filler_occurrences,
+)
+from app.domain.filler_detector import FillerDetectionResult
 from app.domain.metrics import (
     SCORING_RULE_VERSION,
     calc_filler,
     calc_structure,
-    detect_filler_occurrences,
     detect_structure_signals,
 )
+from app.infrastructure.filler.factory import create_filler_detector
 from evaluation.models import AudioObservationSet, ValidationSample, ValidationSampleSet
 
 _EVALUATION_ROOT = Path(__file__).resolve().parent
@@ -22,7 +29,16 @@ DEFAULT_SAMPLES_PATH = _EVALUATION_ROOT / "samples" / "validation_samples.json"
 DEFAULT_AUDIO_OBSERVATIONS_PATH = (
     _EVALUATION_ROOT / "baselines" / "audio_observations.json"
 )
-DEFAULT_OUTPUT_PATH = _EVALUATION_ROOT / "baselines" / "coach-ko-v1.json"
+DEFAULT_OUTPUT_PATH = _EVALUATION_ROOT / "baselines" / "coach-ko-v2.local.json"
+
+
+def _conservative_detector(
+    calc_input: MetricCalculationInput,
+) -> FillerDetectionResult:
+    return FillerDetectionResult(
+        occurrences=detect_conservative_filler_occurrences(calc_input),
+        detector="conservative-v1",
+    )
 
 
 def load_samples(path: Path = DEFAULT_SAMPLES_PATH) -> ValidationSampleSet:
@@ -67,8 +83,12 @@ def _round_ratio(numerator: int, denominator: int) -> float:
     return round(numerator / denominator, 4) if denominator else 1.0
 
 
-def _filler_counts(sample: ValidationSample) -> tuple[int, int, int, list[dict]]:
-    predicted = detect_filler_occurrences(sample.transcript)
+def _filler_counts(
+    sample: ValidationSample,
+    predicted: list[FillerOccurrence],
+    *,
+    include_evidence: bool,
+) -> tuple[int, int, int, list[dict]]:
     expected_keys = {
         (item.start_char, item.end_char, item.text) for item in sample.expected_fillers
     }
@@ -78,19 +98,32 @@ def _filler_counts(sample: ValidationSample) -> tuple[int, int, int, list[dict]]
     true_positives = len(expected_keys & predicted_keys)
     false_positives = len(predicted_keys - expected_keys)
     false_negatives = len(expected_keys - predicted_keys)
+    detections = []
+    for item in predicted:
+        detection = {
+            "text": item.text,
+            "startChar": item.start_char,
+            "endChar": item.end_char,
+            "isExpected": (item.start_char, item.end_char, item.text) in expected_keys,
+        }
+        if include_evidence:
+            detection.update(
+                {
+                    "startMs": item.start_ms,
+                    "endMs": item.end_ms,
+                    "precedingPauseMs": item.preceding_pause_ms,
+                    "followingPauseMs": item.following_pause_ms,
+                    "reason": item.reason,
+                    "evidence": item.evidence,
+                }
+            )
+        detections.append(detection)
+
     return (
         true_positives,
         false_positives,
         false_negatives,
-        [
-            {
-                "text": item.text,
-                "startChar": item.start_char,
-                "endChar": item.end_char,
-                "isExpected": (item.start_char, item.end_char, item.text) in expected_keys,
-            }
-            for item in predicted
-        ],
+        detections,
     )
 
 
@@ -112,6 +145,13 @@ def _pearson_correlation(pairs: list[tuple[float, float]]) -> float | None:
 def build_baseline(
     samples: ValidationSampleSet,
     audio_observations: AudioObservationSet | None = None,
+    *,
+    filler_detector: Callable[
+        [MetricCalculationInput], FillerDetectionResult
+    ] = _conservative_detector,
+    scoring_rule_version: str = SCORING_RULE_VERSION,
+    schema_version: int = 2,
+    include_filler_evidence: bool = True,
 ) -> dict:
     observations = (
         audio_observations or AudioObservationSet(schema_version=1, observations=[])
@@ -134,10 +174,15 @@ def build_baseline(
 
     for sample in samples.samples:
         calc_input = _metric_input(sample)
-        filler_score = calc_filler(calc_input)
+        filler_detection = filler_detector(calc_input)
+        filler_score = calc_filler(calc_input, filler_detection)
         structure_score = calc_structure(calc_input)
         signals = detect_structure_signals(calc_input)
-        true_positives, false_positives, false_negatives, detections = _filler_counts(sample)
+        true_positives, false_positives, false_negatives, detections = _filler_counts(
+            sample,
+            filler_detection.occurrences,
+            include_evidence=include_filler_evidence,
+        )
         filler_totals["truePositives"] += true_positives
         filler_totals["falsePositives"] += false_positives
         filler_totals["falseNegatives"] += false_negatives
@@ -155,6 +200,21 @@ def build_baseline(
                 (float(observation.pronunciation_score), human_pronunciation_score)
             )
 
+        filler_result = {
+            "expectedCount": len(sample.expected_fillers),
+            "predictedCount": len(detections),
+            "detections": detections,
+        }
+        if include_filler_evidence:
+            filler_result.update(
+                {
+                    "detector": filler_detection.detector,
+                    "model": filler_detection.model,
+                    "promptVersion": filler_detection.prompt_version,
+                    "fallbackReason": filler_detection.fallback_reason,
+                }
+            )
+
         sample_results.append(
             {
                 "sampleId": sample.sample_id,
@@ -165,11 +225,7 @@ def build_baseline(
                     "filler": filler_score.score,
                     "structure": structure_score.score,
                 },
-                "filler": {
-                    "expectedCount": len(sample.expected_fillers),
-                    "predictedCount": len(detections),
-                    "detections": detections,
-                },
+                "filler": filler_result,
                 "structure": {
                     "signals": {
                         "intro": signals.intro,
@@ -207,8 +263,8 @@ def build_baseline(
     pronunciation_errors = [abs(predicted - expected) for predicted, expected in pronunciation_pairs]
 
     return {
-        "schemaVersion": 1,
-        "scoringRuleVersion": SCORING_RULE_VERSION,
+        "schemaVersion": schema_version,
+        "scoringRuleVersion": scoring_rule_version,
         "sampleSetSha256": _sample_set_sha256(samples),
         "sampleCount": len(samples.samples),
         "aggregate": {
@@ -256,9 +312,11 @@ def main() -> None:
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
     args = parser.parse_args()
 
+    detector = create_filler_detector(get_settings())
     report = build_baseline(
         load_samples(args.samples),
         load_audio_observations(args.audio_observations),
+        filler_detector=detector.detect,
     )
     write_baseline(report, args.output)
 

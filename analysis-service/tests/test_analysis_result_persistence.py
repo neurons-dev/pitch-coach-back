@@ -24,7 +24,13 @@ def _result(**overrides) -> AnalysisResultInput:
         "total_silence_ms": 0,
         "model_info": {"provider": "local"},
         "metric_scores": [
-            MetricScoreInput(metric_code="SPEED", score=82, raw_value=430, unit="CPM"),
+            MetricScoreInput(
+                metric_code="SPEED",
+                score=82,
+                raw_value=430,
+                unit="CPM",
+                details={"sample": "stored evidence"},
+            ),
         ],
         "feedback_items": [
             FeedbackItemInput(
@@ -64,6 +70,7 @@ def test_save_result_and_complete_persists_result_and_completes_job(
         assert result.overall_score == 88
         assert result.pipeline_version == "audio-0.1"
         assert len(result.metric_scores) == 1
+        assert result.metric_scores[0].details == {"sample": "stored evidence"}
         assert len(result.feedback_items) == 1
 
 

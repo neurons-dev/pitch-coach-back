@@ -75,11 +75,41 @@ def compare_reports(baseline: dict, candidate: dict) -> dict:
         "sampleSetSha256": baseline["sampleSetSha256"],
         "sampleCount": len(baseline_ids),
         "metrics": {
+            "fillerPrecision": {
+                "baseline": baseline_filler["precision"],
+                "candidate": candidate_filler["precision"],
+                "delta": _delta(
+                    candidate_filler["precision"], baseline_filler["precision"]
+                ),
+                "improved": (
+                    candidate_filler["precision"] > baseline_filler["precision"]
+                ),
+            },
+            "fillerRecall": {
+                "baseline": baseline_filler["recall"],
+                "candidate": candidate_filler["recall"],
+                "delta": _delta(
+                    candidate_filler["recall"], baseline_filler["recall"]
+                ),
+                "improved": candidate_filler["recall"] > baseline_filler["recall"],
+            },
             "fillerF1": {
                 "baseline": baseline_filler["f1"],
                 "candidate": candidate_filler["f1"],
                 "delta": _delta(candidate_filler["f1"], baseline_filler["f1"]),
                 "improved": candidate_filler["f1"] > baseline_filler["f1"],
+            },
+            "fillerFalsePositives": {
+                "baseline": baseline_filler["falsePositives"],
+                "candidate": candidate_filler["falsePositives"],
+                "delta": (
+                    candidate_filler["falsePositives"]
+                    - baseline_filler["falsePositives"]
+                ),
+                "improved": (
+                    candidate_filler["falsePositives"]
+                    < baseline_filler["falsePositives"]
+                ),
             },
             "structureMeanAbsoluteError": {
                 "baseline": baseline_structure["meanAbsoluteError"],

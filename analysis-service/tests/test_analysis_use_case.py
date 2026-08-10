@@ -13,12 +13,13 @@ import pytest
 
 from app.application.analysis.analysis_use_case import AnalysisUseCase
 from app.core.config import Settings
-from app.domain.audio import DownloadedAudio, Transcript, TranscriptSegment
+from app.domain.audio import DownloadedAudio, Transcript, TranscriptSegment, TranscriptWord
 from app.domain.entities import AnalysisResultInput, PronunciationAssessment
 from app.domain.errors import AnalysisError
 from app.infrastructure.audio.normalizer import FfmpegAudioNormalizer
 from app.infrastructure.audio.transcriber import FasterWhisperTranscriber
 from app.infrastructure.feedback.template_generator import TemplateFeedbackGenerator
+from app.infrastructure.filler.conservative_detector import ConservativeFillerDetector
 from app.infrastructure.pronunciation.local import LocalPronunciationAssessor
 
 
@@ -104,6 +105,7 @@ class TestAnalysisUseCaseFakeProviders:
             speech_transcriber=transcriber or _FakeSpeechTranscriber(_transcript()),
             pronunciation_assessor=pronunciation_assessor or _FakePronunciationAssessor(),
             feedback_generator=TemplateFeedbackGenerator(),
+            filler_detector=ConservativeFillerDetector(),
             pipeline_version="audio-pipeline-v1",
         )
         return use_case, downloaded_path, normalized_path
@@ -116,7 +118,7 @@ class TestAnalysisUseCaseFakeProviders:
         assert isinstance(result, AnalysisResultInput)
         assert result.pipeline_version == "audio-pipeline-v1"
         assert result.stt_model_version == "faster-whisper-tiny"
-        assert result.scoring_rule_version == "coach-ko-v1"
+        assert result.scoring_rule_version == "coach-ko-v2"
         assert result.transcript_text == "안녕하세요 오늘은 발표를 시작하겠습니다"
         assert len(result.transcript_segments) == 2
         assert {m.metric_code for m in result.metric_scores} == {
@@ -125,6 +127,56 @@ class TestAnalysisUseCaseFakeProviders:
         assert result.feedback_items[0].item_type == "summary"
         assert result.model_info["feedbackPromptVersion"] == "template-feedback-v1"
         assert result.model_info["feedbackFallbackReason"] is None
+        assert result.model_info["fillerDetector"] == "conservative-v1"
+        assert result.model_info["fillerModel"] is None
+
+    def test_run_keeps_filler_positions_timestamps_and_reason_in_metric_details(
+        self, tmp_path: Path
+    ):
+        # given
+        transcript = Transcript(
+            text="음 발표를 시작하겠습니다",
+            language="ko",
+            model_version="faster-whisper-tiny",
+            duration_ms=2000,
+            segments=[
+                TranscriptSegment(
+                    start_ms=0,
+                    end_ms=2000,
+                    text="음 발표를 시작하겠습니다",
+                    avg_logprob=-0.1,
+                    words=[
+                        TranscriptWord(0, 200, "음", 0.9),
+                        TranscriptWord(700, 2000, "발표를 시작하겠습니다", 0.9),
+                    ],
+                )
+            ],
+        )
+        use_case, _, _ = self._use_case(
+            tmp_path=tmp_path,
+            transcriber=_FakeSpeechTranscriber(transcript),
+        )
+
+        # when
+        result = use_case.run(audio_object_key="sessions/x/y.wav", analysis_version="v1")
+        filler = next(
+            metric for metric in result.metric_scores if metric.metric_code == "FILLER"
+        )
+
+        # then
+        assert filler.details["totalCount"] == 1
+        assert filler.details["occurrences"][0] == {
+            "text": "음",
+            "startChar": 0,
+            "endChar": 1,
+            "startMs": 0,
+            "endMs": 200,
+            "precedingPauseMs": 0,
+            "followingPauseMs": 500,
+            "reason": "HIGH_CONFIDENCE_MARKER",
+            "evidence": "LLM 장애 시 사용하는 보수적 필러 표지",
+        }
+        assert filler.details["detector"] == "conservative-v1"
 
     def test_run_cleans_up_downloaded_and_normalized_files_on_success(self, tmp_path: Path):
         use_case, downloaded_path, normalized_path = self._use_case(tmp_path=tmp_path)
@@ -235,6 +287,7 @@ def test_end_to_end_with_real_ffmpeg_and_whisper(tmp_path: Path):
         speech_transcriber=FasterWhisperTranscriber(settings=_settings(whisper_model_size="tiny")),
         pronunciation_assessor=LocalPronunciationAssessor(),
         feedback_generator=TemplateFeedbackGenerator(),
+        filler_detector=ConservativeFillerDetector(),
         pipeline_version="audio-pipeline-v1",
     )
 
@@ -243,6 +296,6 @@ def test_end_to_end_with_real_ffmpeg_and_whisper(tmp_path: Path):
     assert isinstance(result, AnalysisResultInput)
     assert result.pipeline_version == "audio-pipeline-v1"
     assert result.stt_model_version == "faster-whisper-tiny"
-    assert result.scoring_rule_version == "coach-ko-v1"
+    assert result.scoring_rule_version == "coach-ko-v2"
     assert len(result.metric_scores) == 6
     assert 0 <= result.overall_score <= 100
