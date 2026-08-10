@@ -9,7 +9,11 @@ from statistics import mean
 from typing import Callable
 
 from app.core.config import get_settings
-from app.domain.entities import MetricCalculationInput, TranscriptSegmentFeatures
+from app.domain.entities import (
+    MetricCalculationInput,
+    StructureAnalysisResult,
+    TranscriptSegmentFeatures,
+)
 from app.domain.filler import (
     FillerOccurrence,
     detect_conservative_filler_occurrences,
@@ -19,9 +23,9 @@ from app.domain.metrics import (
     SCORING_RULE_VERSION,
     calc_filler,
     calc_structure,
-    detect_structure_signals,
 )
 from app.infrastructure.filler.factory import create_filler_detector
+from app.infrastructure.structure.factory import create_structure_analyzer
 from evaluation.models import AudioObservationSet, ValidationSample, ValidationSampleSet
 
 _EVALUATION_ROOT = Path(__file__).resolve().parent
@@ -146,6 +150,7 @@ def build_baseline(
     samples: ValidationSampleSet,
     audio_observations: AudioObservationSet | None = None,
     *,
+    structure_analyzer: Callable[..., StructureAnalysisResult],
     filler_detector: Callable[
         [MetricCalculationInput], FillerDetectionResult
     ] = _conservative_detector,
@@ -176,8 +181,12 @@ def build_baseline(
         calc_input = _metric_input(sample)
         filler_detection = filler_detector(calc_input)
         filler_score = calc_filler(calc_input, filler_detection)
-        structure_score = calc_structure(calc_input)
-        signals = detect_structure_signals(calc_input)
+        structure_analysis = structure_analyzer(
+            calc_input,
+            practice_type_code=sample.practice_type_code,
+            target_duration_sec=sample.target_duration_sec,
+        )
+        structure_score = calc_structure(structure_analysis)
         true_positives, false_positives, false_negatives, detections = _filler_counts(
             sample,
             filler_detection.occurrences,
@@ -228,10 +237,12 @@ def build_baseline(
                 "filler": filler_result,
                 "structure": {
                     "signals": {
-                        "intro": signals.intro,
-                        "body": signals.body,
-                        "conclusion": signals.conclusion,
+                        "intro": structure_analysis.intro,
+                        "body": structure_analysis.body,
+                        "conclusion": structure_analysis.conclusion,
                     },
+                    "reasoning": structure_analysis.reasoning,
+                    "analyzer": structure_analysis.analyzer,
                     "humanScore": sample.structure.human_score,
                     "absoluteError": structure_error,
                 },
@@ -312,11 +323,14 @@ def main() -> None:
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
     args = parser.parse_args()
 
-    detector = create_filler_detector(get_settings())
+    settings = get_settings()
+    detector = create_filler_detector(settings)
+    analyzer = create_structure_analyzer(settings)
     report = build_baseline(
         load_samples(args.samples),
         load_audio_observations(args.audio_observations),
         filler_detector=detector.detect,
+        structure_analyzer=analyzer.analyze,
     )
     write_baseline(report, args.output)
 

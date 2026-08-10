@@ -8,7 +8,15 @@ from pydantic import ValidationError
 from evaluation.compare import compare_reports
 from evaluation.models import PronunciationAnnotation
 from evaluation.runner import build_baseline, load_audio_observations, load_samples
+from app.domain.entities import StructureAnalysisResult
 from app.domain.filler_detector import FillerDetectionResult
+
+
+def _fake_structure_analyzer(_calc_input, *, practice_type_code=None, target_duration_sec=None):
+    return StructureAnalysisResult(
+        score=80, intro=True, body=True, conclusion=True,
+        reasoning="테스트용 고정 결과", analyzer="fake",
+    )
 
 
 def _baseline_report() -> dict:
@@ -46,7 +54,7 @@ def _baseline_report() -> dict:
 
 def test_validation_samples_have_valid_annotations_and_unique_ids():
     # given
-    expected_sample_count = 7
+    expected_sample_count = 8
 
     # when
     sample_set = load_samples()
@@ -84,7 +92,9 @@ def test_baseline_records_injected_detector_metadata():
         )
 
     # when
-    report = build_baseline(sample_set, filler_detector=fake_detector)
+    report = build_baseline(
+        sample_set, filler_detector=fake_detector, structure_analyzer=_fake_structure_analyzer
+    )
 
     # then
     assert report["schemaVersion"] == 2
@@ -105,7 +115,9 @@ def test_tts_observations_are_not_used_as_pronunciation_accuracy_ground_truth():
     observations = load_audio_observations()
 
     # when
-    report = build_baseline(sample_set, observations)
+    report = build_baseline(
+        sample_set, observations, structure_analyzer=_fake_structure_analyzer
+    )
 
     # then
     pronunciation = report["aggregate"]["pronunciation"]

@@ -86,6 +86,7 @@ class Dispatcher:
                         analysis_version=claim.analysis_version,
                         presentation_title=claim.presentation_title,
                         practice_type_code=claim.practice_type_code,
+                        target_duration_sec=claim.target_duration_sec,
                     )
             finally:
                 self._observe_analysis_boundary("after_analysis")

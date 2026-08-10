@@ -34,6 +34,7 @@ class SqlAlchemyJobRepository:
         duration_ms: int | None,
         presentation_title: str | None = None,
         practice_type_code: str | None = None,
+        target_duration_sec: int | None = None,
     ) -> JobCreation:
         values = {
             "idempotency_key": idempotency_key,
@@ -45,6 +46,7 @@ class SqlAlchemyJobRepository:
             "duration_ms": duration_ms,
             "presentation_title": presentation_title,
             "practice_type_code": practice_type_code,
+            "target_duration_sec": target_duration_sec,
             "analysis_version": "v1",
             "status": "queued",
         }
@@ -89,6 +91,7 @@ class SqlAlchemyJobRepository:
             "duration_ms",
             "presentation_title",
             "practice_type_code",
+            "target_duration_sec",
         )
         mismatches = [name for name in request_fields if getattr(job, name) != expected[name]]
         if mismatches:
@@ -129,6 +132,7 @@ class SqlAlchemyJobRepository:
             analysis_version = job.analysis_version
             presentation_title = job.presentation_title
             practice_type_code = job.practice_type_code
+            target_duration_sec = job.target_duration_sec
             lease_token = uuid.uuid4()
 
             session.execute(
@@ -155,6 +159,7 @@ class SqlAlchemyJobRepository:
                 lease_token=lease_token,
                 presentation_title=presentation_title,
                 practice_type_code=practice_type_code,
+                target_duration_sec=target_duration_sec,
             )
 
     def renew_lease(

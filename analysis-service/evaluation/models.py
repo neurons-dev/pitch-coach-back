@@ -83,6 +83,7 @@ class ValidationSample(EvaluationModel):
     sample_id: str = Field(min_length=1)
     title: str
     practice_type_code: str
+    target_duration_sec: int | None = None
     transcript: str
     duration_ms: int = Field(gt=0)
     segments: list[TranscriptSegmentSample]

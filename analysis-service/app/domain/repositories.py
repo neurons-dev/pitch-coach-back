@@ -19,6 +19,7 @@ class JobRepository(Protocol):
         duration_ms: int | None,
         presentation_title: str | None = None,
         practice_type_code: str | None = None,
+        target_duration_sec: int | None = None,
     ) -> JobCreation: ...
 
     def get_job(self, job_id: uuid.UUID) -> AnalysisJobLike | None: ...
