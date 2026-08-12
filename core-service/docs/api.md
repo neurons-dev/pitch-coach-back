@@ -183,6 +183,37 @@ POST /api/auth/logout
 
 ---
 
+## User API
+
+> 인증 필요 (`Authorization: Bearer {accessToken}`)
+
+### 내 프로필 조회
+
+```
+GET /api/users/me
+```
+
+로그인한 사용자 본인의 프로필 정보를 조회합니다.
+
+**Response** `200 OK`
+
+```json
+{
+  "userId": 5,
+  "name": "테스트123",
+  "email": "test@gmail.com",
+  "profileImageUrl": null,
+  "level": 1,
+  "status": "ACTIVE",
+  "createdAt": "2026-07-01T10:00:00"
+}
+```
+
+**에러**
+- `401` — 인증 실패
+
+---
+
 ## Practice Type API
 
 > 인증 필요 (`Authorization: Bearer {accessToken}`)
