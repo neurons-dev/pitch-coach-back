@@ -250,6 +250,36 @@ Content-Type: multipart/form-data
 
 ---
 
+### 비밀번호 변경
+
+```
+PATCH /api/users/me/password
+```
+
+로컬 계정(이메일/비밀번호)의 비밀번호를 변경합니다. 소셜 로그인 전용 계정은 사용할 수 없습니다.
+
+**Request Body**
+
+| 필드 | 타입 | 제약 |
+|---|---|---|
+| currentPassword | string | 필수 |
+| newPassword | string | 필수, 8~64자 |
+
+```json
+{
+  "currentPassword": "oldpassword123",
+  "newPassword": "newpassword456"
+}
+```
+
+**Response** `204 No Content`
+
+**에러**
+- `400` — 소셜 로그인 전용 계정 (로컬 비밀번호 없음), 또는 `newPassword` 길이 위반
+- `401` — 인증 실패, 또는 `currentPassword` 불일치
+
+---
+
 ## Practice Type API
 
 > 인증 필요 (`Authorization: Bearer {accessToken}`)
