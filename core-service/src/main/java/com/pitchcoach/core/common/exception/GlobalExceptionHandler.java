@@ -28,6 +28,16 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ErrorResponse.of(e.getMessage()));
     }
 
+    @ExceptionHandler(CurrentPasswordMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleCurrentPasswordMismatch(CurrentPasswordMismatchException e) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ErrorResponse.of(e.getMessage()));
+    }
+
+    @ExceptionHandler(LocalCredentialNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleLocalCredentialNotFound(LocalCredentialNotFoundException e) {
+        return ResponseEntity.badRequest().body(ErrorResponse.of(e.getMessage()));
+    }
+
     @ExceptionHandler(InvalidTokenException.class)
     public ResponseEntity<ErrorResponse> handleInvalidToken(InvalidTokenException e) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ErrorResponse.of(e.getMessage()));

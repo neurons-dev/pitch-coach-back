@@ -1,11 +1,13 @@
 package com.pitchcoach.core.user.application;
 
+import com.pitchcoach.core.common.exception.InactiveUserException;
 import com.pitchcoach.core.common.exception.InvalidCredentialsException;
 import com.pitchcoach.core.common.security.JwtTokenProvider;
 import com.pitchcoach.core.common.security.RefreshTokenGenerator;
 import com.pitchcoach.core.user.domain.LocalCredential;
 import com.pitchcoach.core.user.domain.RefreshToken;
 import com.pitchcoach.core.user.domain.User;
+import com.pitchcoach.core.user.domain.UserStatus;
 import com.pitchcoach.core.user.infrastructure.LocalCredentialJpaRepository;
 import com.pitchcoach.core.user.infrastructure.RefreshTokenJpaRepository;
 import com.pitchcoach.core.user.infrastructure.UserJpaRepository;
@@ -40,6 +42,10 @@ public class LoginService {
 
         if (!passwordEncoder.matches(request.password(), credential.getPasswordHash())) {
             throw new InvalidCredentialsException();
+        }
+
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            throw new InactiveUserException(user.getStatus().name());
         }
 
         String accessToken = jwtTokenProvider.createAccessToken(user.getId());
