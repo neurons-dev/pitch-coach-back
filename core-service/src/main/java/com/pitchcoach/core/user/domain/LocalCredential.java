@@ -41,4 +41,8 @@ public class LocalCredential {
         credential.passwordHash = passwordHash;
         return credential;
     }
+
+    public void changePassword(String newPasswordHash) {
+        this.passwordHash = newPasswordHash;
+    }
 }
