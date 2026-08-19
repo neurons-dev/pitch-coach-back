@@ -596,10 +596,14 @@ GET /api/analyses/{analysisJobId}/result
   "analysisJobId": "9c6b6e2a-1f3a-4b0a-9d3a-2f7e6a1c5b90",
   "overallScore": 82,
   "coachComment": "전반적으로 안정적인 발표였습니다...",
-  "speechRateScore": 80,
-  "fillerWordScore": 79,
-  "structureScore": 88,
-  "deliveryScore": 78,
+  "metricScores": [
+    { "metricCode": "SPEED", "score": 80, "rawValue": 145.2, "unit": "wpm" },
+    { "metricCode": "FILLER", "score": 79, "rawValue": null, "unit": null },
+    { "metricCode": "STRUCTURE", "score": 88, "rawValue": null, "unit": null },
+    { "metricCode": "DELIVERY", "score": 78, "rawValue": null, "unit": null },
+    { "metricCode": "PRONUNCIATION", "score": 84, "rawValue": 88.0, "unit": "ACCURACY" },
+    { "metricCode": "FLUENCY", "score": 76, "rawValue": null, "unit": null }
+  ],
   "feedback": [
     { "metricCode": null, "itemType": "summary", "title": "전체 요약", "description": "..." },
     { "metricCode": "SPEED", "itemType": "improvement", "title": "말하기 속도 개선", "description": "..." }
@@ -607,7 +611,7 @@ GET /api/analyses/{analysisJobId}/result
 }
 ```
 
-`speechRateScore`/`fillerWordScore`/`structureScore`/`deliveryScore`는 analysis-service의 metricScores 중 각각 `SPEED`/`FILLER`/`STRUCTURE`/`DELIVERY` 지표 점수입니다. analysis-service가 해당 지표를 내려주지 않으면 `null`입니다. analysis-service는 이 외에도 `PRONUNCIATION`/`FLUENCY` 지표를 함께 내려줄 수 있지만, 현재 응답에는 포함하지 않습니다.
+`metricScores`는 analysis-service가 내려주는 지표 점수를 그대로 배열로 전달합니다 (필터링 없음).
 
 **에러**
 - `404` — 분석 작업이 존재하지 않거나 본인 소유가 아님
