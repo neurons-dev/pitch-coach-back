@@ -183,6 +183,73 @@ POST /api/auth/logout
 
 ---
 
+## User API
+
+> 인증 필요 (`Authorization: Bearer {accessToken}`)
+
+### 내 프로필 조회
+
+```
+GET /api/users/me
+```
+
+로그인한 사용자 본인의 프로필 정보를 조회합니다.
+
+**Response** `200 OK`
+
+```json
+{
+  "userId": 5,
+  "name": "테스트123",
+  "email": "test@gmail.com",
+  "profileImageUrl": null,
+  "level": 1,
+  "status": "ACTIVE",
+  "createdAt": "2026-07-01T10:00:00"
+}
+```
+
+**에러**
+- `401` — 인증 실패
+
+---
+
+### 프로필 이미지 업로드
+
+```
+POST /api/users/me/profile-image
+Content-Type: multipart/form-data
+```
+
+본인의 프로필 이미지를 업로드합니다. S3에 저장 후 `profileImageUrl`을 갱신합니다. 기존에 직접 업로드해서 쓰던 이미지가 있었다면 S3에서 삭제됩니다 (소셜 로그인으로 받아온 외부 URL은 삭제 대상이 아닙니다).
+
+**Form Fields**
+
+| 필드 | 타입 | 제약 |
+|---|---|---|
+| file | file | 필수, 지원 형식: `image/jpeg`, `image/png`, `image/webp` |
+
+**Response** `200 OK`
+
+```json
+{
+  "userId": 5,
+  "name": "테스트123",
+  "email": "test@gmail.com",
+  "profileImageUrl": "https://pitch-coach-bucket.s3.ap-northeast-2.amazonaws.com/users/5/9c6b6e2a-....jpg",
+  "level": 1,
+  "status": "ACTIVE",
+  "createdAt": "2026-07-01T10:00:00"
+}
+```
+
+**에러**
+- `400` — 지원하지 않는 이미지 형식
+- `401` — 인증 실패
+- `413` — 파일 크기 초과 (최대 50MB)
+
+---
+
 ## Practice Type API
 
 > 인증 필요 (`Authorization: Bearer {accessToken}`)
@@ -529,10 +596,14 @@ GET /api/analyses/{analysisJobId}/result
   "analysisJobId": "9c6b6e2a-1f3a-4b0a-9d3a-2f7e6a1c5b90",
   "overallScore": 82,
   "coachComment": "전반적으로 안정적인 발표였습니다...",
-  "speechRateScore": 80,
-  "fillerWordScore": 79,
-  "structureScore": 88,
-  "deliveryScore": 78,
+  "metricScores": [
+    { "metricCode": "SPEED", "score": 80, "rawValue": 145.2, "unit": "wpm" },
+    { "metricCode": "FILLER", "score": 79, "rawValue": null, "unit": null },
+    { "metricCode": "STRUCTURE", "score": 88, "rawValue": null, "unit": null },
+    { "metricCode": "DELIVERY", "score": 78, "rawValue": null, "unit": null },
+    { "metricCode": "PRONUNCIATION", "score": 84, "rawValue": 88.0, "unit": "ACCURACY" },
+    { "metricCode": "FLUENCY", "score": 76, "rawValue": null, "unit": null }
+  ],
   "feedback": [
     { "metricCode": null, "itemType": "summary", "title": "전체 요약", "description": "..." },
     { "metricCode": "SPEED", "itemType": "improvement", "title": "말하기 속도 개선", "description": "..." }
@@ -540,7 +611,7 @@ GET /api/analyses/{analysisJobId}/result
 }
 ```
 
-`speechRateScore`/`fillerWordScore`/`structureScore`/`deliveryScore`는 analysis-service의 metricScores 중 각각 `SPEED`/`FILLER`/`STRUCTURE`/`DELIVERY` 지표 점수입니다. analysis-service가 해당 지표를 내려주지 않으면 `null`입니다. analysis-service는 이 외에도 `PRONUNCIATION`/`FLUENCY` 지표를 함께 내려줄 수 있지만, 현재 응답에는 포함하지 않습니다.
+`metricScores`는 analysis-service가 내려주는 지표 점수를 그대로 배열로 전달합니다 (필터링 없음).
 
 **에러**
 - `404` — 분석 작업이 존재하지 않거나 본인 소유가 아님
