@@ -84,6 +84,17 @@ public class GlobalExceptionHandler {
         return ResponseEntity.internalServerError().body(ErrorResponse.of(e.getMessage()));
     }
 
+    @ExceptionHandler(UnsupportedImageFormatException.class)
+    public ResponseEntity<ErrorResponse> handleUnsupportedImageFormat(UnsupportedImageFormatException e) {
+        return ResponseEntity.badRequest().body(ErrorResponse.of(e.getMessage()));
+    }
+
+    @ExceptionHandler(ProfileImageUploadFailedException.class)
+    public ResponseEntity<ErrorResponse> handleProfileImageUploadFailed(ProfileImageUploadFailedException e) {
+        log.error("프로필 이미지 업로드에 실패했습니다.", e);
+        return ResponseEntity.internalServerError().body(ErrorResponse.of(e.getMessage()));
+    }
+
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ErrorResponse> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException e) {
         return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE)

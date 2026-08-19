@@ -58,4 +58,8 @@ public class User {
         user.status = UserStatus.ACTIVE;
         return user;
     }
+
+    public void updateProfileImageUrl(String profileImageUrl) {
+        this.profileImageUrl = profileImageUrl;
+    }
 }
