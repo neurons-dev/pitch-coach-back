@@ -3,14 +3,17 @@ package com.pitchcoach.core.user.presentation;
 import com.pitchcoach.core.user.application.GetUserProfileService;
 import com.pitchcoach.core.user.application.UpdatePasswordService;
 import com.pitchcoach.core.user.application.UpdateProfileImageService;
+import com.pitchcoach.core.user.application.WithdrawAccountService;
 import com.pitchcoach.core.user.presentation.dto.UpdatePasswordRequest;
 import com.pitchcoach.core.user.presentation.dto.UserProfileResponse;
+import com.pitchcoach.core.user.presentation.dto.WithdrawRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,6 +32,7 @@ public class UserController {
     private final GetUserProfileService getUserProfileService;
     private final UpdateProfileImageService updateProfileImageService;
     private final UpdatePasswordService updatePasswordService;
+    private final WithdrawAccountService withdrawAccountService;
 
     @Operation(summary = "내 프로필 조회", description = "로그인한 사용자 본인의 프로필 정보를 조회합니다.")
     @GetMapping("/me")
@@ -52,6 +56,16 @@ public class UserController {
             @Valid @RequestBody UpdatePasswordRequest request
     ) {
         updatePasswordService.update(userId, request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "계정 탈퇴", description = "본인 계정을 탈퇴 처리합니다. 로컬 계정은 비밀번호 확인이 필요합니다. 처리 후 보유한 모든 refreshToken이 폐기됩니다.")
+    @DeleteMapping("/me")
+    public ResponseEntity<Void> withdraw(
+            @AuthenticationPrincipal Long userId,
+            @RequestBody(required = false) WithdrawRequest request
+    ) {
+        withdrawAccountService.withdraw(userId, request);
         return ResponseEntity.noContent().build();
     }
 }
