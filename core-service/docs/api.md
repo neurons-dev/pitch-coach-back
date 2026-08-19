@@ -214,6 +214,42 @@ GET /api/users/me
 
 ---
 
+### 프로필 이미지 업로드
+
+```
+POST /api/users/me/profile-image
+Content-Type: multipart/form-data
+```
+
+본인의 프로필 이미지를 업로드합니다. S3에 저장 후 `profileImageUrl`을 갱신합니다. 기존에 직접 업로드해서 쓰던 이미지가 있었다면 S3에서 삭제됩니다 (소셜 로그인으로 받아온 외부 URL은 삭제 대상이 아닙니다).
+
+**Form Fields**
+
+| 필드 | 타입 | 제약 |
+|---|---|---|
+| file | file | 필수, 지원 형식: `image/jpeg`, `image/png`, `image/webp` |
+
+**Response** `200 OK`
+
+```json
+{
+  "userId": 5,
+  "name": "테스트123",
+  "email": "test@gmail.com",
+  "profileImageUrl": "https://pitch-coach-bucket.s3.ap-northeast-2.amazonaws.com/users/5/9c6b6e2a-....jpg",
+  "level": 1,
+  "status": "ACTIVE",
+  "createdAt": "2026-07-01T10:00:00"
+}
+```
+
+**에러**
+- `400` — 지원하지 않는 이미지 형식
+- `401` — 인증 실패
+- `413` — 파일 크기 초과 (최대 50MB)
+
+---
+
 ## Practice Type API
 
 > 인증 필요 (`Authorization: Bearer {accessToken}`)
