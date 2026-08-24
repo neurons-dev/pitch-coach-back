@@ -73,8 +73,40 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            set -eu
             docker network create pitchcoach-net 2>/dev/null || true
             cd ${{ env.DEPLOY_PATH }}
+
             docker compose -f docker-compose.prod.yml pull
+            IMAGE_REF=$(docker compose -f docker-compose.prod.yml config --images)
+            PULLED_DIGEST=$(docker inspect --format='{{.Id}}' "$IMAGE_REF")
+            echo "pulled image digest: $PULLED_DIGEST"
+
             docker compose -f docker-compose.prod.yml up -d --force-recreate
+
+            sleep 5
+            RUNNING_CONTAINER_ID=$(docker compose -f docker-compose.prod.yml ps -q core-service)
+            RUNNING_DIGEST=$(docker inspect --format='{{.Image}}' "$RUNNING_CONTAINER_ID")
+            echo "running image digest: $RUNNING_DIGEST"
+
+            if [ "$PULLED_DIGEST" != "$RUNNING_DIGEST" ]; then
+              echo "::error::배포 검증 실패 - 실행 중인 컨테이너 이미지가 방금 pull한 이미지와 다릅니다 (pulled=$PULLED_DIGEST, running=$RUNNING_DIGEST)"
+              exit 1
+            fi
+
+            HEALTH_OK=false
+            for i in $(seq 1 15); do
+              if curl -sf http://localhost:8080/actuator/health >/dev/null; then
+                HEALTH_OK=true
+                break
+              fi
+              sleep 2
+            done
+
+            if [ "$HEALTH_OK" != "true" ]; then
+              echo "::error::배포 검증 실패 - 헬스체크(actuator/health)가 응답하지 않습니다"
+              exit 1
+            fi
+
+            echo "배포 검증 성공"
             docker image prune -f
