@@ -89,13 +89,13 @@ class _FakeSpeechTranscriber:
         self._transcript = transcript
         self.transcribe_calls: list[tuple] = []
 
-    def transcribe(self, audio_path: Path, *, language: str) -> Transcript:
+    def transcribe(self, audio_path: Path, *, language: str, duration_ms: int) -> Transcript:
         self.transcribe_calls.append((audio_path, language))
         return self._transcript
 
 
 class _FailingSpeechTranscriber:
-    def transcribe(self, audio_path: Path, *, language: str) -> Transcript:
+    def transcribe(self, audio_path: Path, *, language: str, duration_ms: int) -> Transcript:
         raise AnalysisError(code="STT_FAILED", message="boom", retryable=True)
 
 
@@ -190,6 +190,46 @@ class TestAnalysisUseCaseFakeProviders:
         structure = next(m for m in result.metric_scores if m.metric_code == "STRUCTURE")
         assert structure.score == 80
         assert structure.details["analyzer"] == "fake"
+
+    def test_run_reports_progress_at_each_stage(self, tmp_path: Path):
+        # given
+        use_case, _, _ = self._use_case(tmp_path=tmp_path)
+        reported: list[tuple[str, int]] = []
+
+        # when
+        use_case.run(
+            audio_object_key="sessions/x/y.wav",
+            analysis_version="v1",
+            progress_reporter=lambda stage, percent: reported.append((stage, percent)),
+        )
+
+        # then: 진행률이 단조 증가하며 각 단계가 보고된다
+        assert [stage for stage, _ in reported] == [
+            "TRANSCRIBING",
+            "ASSESSING_PRONUNCIATION",
+            "ANALYZING_CONTENT",
+            "GENERATING_FEEDBACK",
+        ]
+        percents = [percent for _, percent in reported]
+        assert percents == sorted(percents)
+        assert all(20 < percent < 100 for percent in percents)
+
+    def test_run_survives_progress_reporter_failure(self, tmp_path: Path):
+        # given: 진행률 보고가 계속 실패해도 분석 결과는 나와야 한다
+        use_case, _, _ = self._use_case(tmp_path=tmp_path)
+
+        def failing_reporter(stage: str, percent: int) -> None:
+            raise RuntimeError("progress store down")
+
+        # when
+        result = use_case.run(
+            audio_object_key="sessions/x/y.wav",
+            analysis_version="v1",
+            progress_reporter=failing_reporter,
+        )
+
+        # then
+        assert isinstance(result, AnalysisResultInput)
 
     def test_run_passes_practice_type_and_target_duration_to_structure_analyzer(
         self, tmp_path: Path

@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from collections.abc import Callable
 
 from app.application.workers.lease_heartbeat import LeaseHeartbeat
-from app.domain.entities import AnalysisResultInput
+from app.domain.entities import AnalysisResultInput, ClaimedJob
 from app.domain.errors import AnalysisError
 from app.domain.repositories import JobRepository
 
 logger = logging.getLogger(__name__)
+
+_IDLE_LOG_INTERVAL_SECONDS = 60.0
 
 AnalysisRunner = Callable[..., AnalysisResultInput]
 AnalysisBoundaryObserver = Callable[[str], None]
@@ -49,6 +52,9 @@ class Dispatcher:
             self._thread.join(timeout=5)
 
     def _run_loop(self) -> None:
+        # 유휴 상태를 주기적으로 남긴다. 이 로그가 없으면 "워커가 살아서 폴링 중인데
+        # 큐가 비어 있음"과 "워커가 죽어 있음"을 로그만 보고 구분할 수 없다.
+        last_idle_log_at = 0.0
         while not self._stop_event.is_set():
             try:
                 processed = self._process_next(
@@ -59,6 +65,10 @@ class Dispatcher:
                 logger.exception("dispatcher loop error")
                 processed = False
             if not processed:
+                now = time.monotonic()
+                if now - last_idle_log_at >= _IDLE_LOG_INTERVAL_SECONDS:
+                    logger.info("dispatcher idle, no queued job to claim")
+                    last_idle_log_at = now
                 self._stop_event.wait(self._worker_poll_interval_seconds)
 
     def _process_next(
@@ -87,6 +97,7 @@ class Dispatcher:
                         presentation_title=claim.presentation_title,
                         practice_type_code=claim.practice_type_code,
                         target_duration_sec=claim.target_duration_sec,
+                        progress_reporter=self._build_progress_reporter(claim),
                     )
             finally:
                 self._observe_analysis_boundary("after_analysis")
@@ -99,7 +110,14 @@ class Dispatcher:
                 retryable=exc.retryable,
             )
             if owned:
-                logger.warning("dispatcher job failed job=%s code=%s", claim.id, exc.code)
+                logger.warning(
+                    "dispatcher job failed job=%s code=%s retryable=%s message=%s",
+                    claim.id,
+                    exc.code,
+                    exc.retryable,
+                    exc.message,
+                    exc_info=True,
+                )
             else:
                 logger.warning("discarded stale failure job=%s code=%s", claim.id, exc.code)
             return True
@@ -129,6 +147,17 @@ class Dispatcher:
         else:
             logger.warning("discarded stale result job=%s", claim.id)
         return True
+
+    def _build_progress_reporter(self, claim: ClaimedJob) -> Callable[[str, int], None]:
+        def report(stage: str, progress_percent: int) -> None:
+            self._jobs.update_progress(
+                claim.id,
+                lease_token=claim.lease_token,
+                stage=stage,
+                progress_percent=progress_percent,
+            )
+
+        return report
 
     def _observe_analysis_boundary(self, event: str) -> None:
         if self._analysis_boundary_observer is None:

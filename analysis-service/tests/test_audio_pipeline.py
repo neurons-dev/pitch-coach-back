@@ -221,7 +221,7 @@ class TestFasterWhisperTranscriber:
             settings=_settings(whisper_model_size="tiny", stt_timeout_seconds=120)
         )
 
-        result = transcriber.transcribe(raw_audio_file, language="ko-KR")
+        result = transcriber.transcribe(raw_audio_file, language="ko-KR", duration_ms=3000)
 
         assert isinstance(result, Transcript)
         assert result.model_version == "faster-whisper-tiny"
@@ -234,10 +234,44 @@ class TestFasterWhisperTranscriber:
             settings=_settings(whisper_model_size="tiny", stt_timeout_seconds=0.001)
         )
 
-        with pytest.raises(AnalysisError) as exc_info:
-            transcriber.transcribe(raw_audio_file, language="ko-KR")
+        # 길이 비례 예산을 0으로 눌러 설정된 최소 타임아웃만 남긴다
+        with patch(
+            "app.infrastructure.audio.transcriber._TIMEOUT_MULTIPLIER", 0.0
+        ), patch("app.infrastructure.audio.transcriber._MIN_TIMEOUT_BUFFER_SECONDS", 0.0):
+            with pytest.raises(AnalysisError) as exc_info:
+                transcriber.transcribe(raw_audio_file, language="ko-KR", duration_ms=3000)
         assert exc_info.value.code == "STT_TIMEOUT"
         assert exc_info.value.retryable is True
+
+    def test_transcribe_scales_timeout_with_audio_duration(self, raw_audio_file: Path):
+        # given: 설정된 고정 타임아웃보다 훨씬 긴 오디오
+        transcriber = FasterWhisperTranscriber(
+            settings=_settings(whisper_model_size="tiny", stt_timeout_seconds=120)
+        )
+        transcriber._model = MagicMock()
+        transcriber._model.transcribe.return_value = (
+            [],
+            SimpleNamespace(duration=0.0, language="ko"),
+        )
+
+        with patch(
+            "app.infrastructure.audio.transcriber.concurrent.futures.ThreadPoolExecutor"
+        ) as pool_cls:
+            future = MagicMock()
+            future.result.return_value = Transcript(
+                text="",
+                segments=[],
+                language="ko",
+                duration_ms=0,
+                model_version="faster-whisper-tiny",
+            )
+            pool_cls.return_value.submit.return_value = future
+
+            # when: 10분짜리 오디오
+            transcriber.transcribe(raw_audio_file, language="ko-KR", duration_ms=600_000)
+
+        # then: 고정 120초가 아니라 길이에 비례한 예산이 쓰인다
+        assert future.result.call_args.kwargs["timeout"] > 120
 
     def test_transcribe_wraps_model_failure_as_retryable(self, raw_audio_file: Path):
         transcriber = FasterWhisperTranscriber(settings=_settings(whisper_model_size="tiny"))
@@ -246,6 +280,6 @@ class TestFasterWhisperTranscriber:
         transcriber._model = broken_model
 
         with pytest.raises(AnalysisError) as exc_info:
-            transcriber.transcribe(raw_audio_file, language="ko-KR")
+            transcriber.transcribe(raw_audio_file, language="ko-KR", duration_ms=3000)
         assert exc_info.value.code == "STT_FAILED"
         assert exc_info.value.retryable is True

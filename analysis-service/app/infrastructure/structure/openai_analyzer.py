@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 
 from openai import OpenAI
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.domain.entities import MetricCalculationInput, StructureAnalysisResult
-from app.domain.errors import AnalysisError
+from app.domain.errors import AnalysisError, describe_exception
+
+logger = logging.getLogger(__name__)
 
 _PROMPT_VERSION = "llm-structure-v2"
 
@@ -136,9 +139,12 @@ class OpenAiStructureAnalyzer:
                 raise ValueError("OpenAI 응답에 파싱된 결과가 없습니다")
             _validate_grounding(response=parsed, transcript_text=calc_input.text)
         except Exception as exc:
+            logger.warning(
+                "LLM 구조 분석 또는 검증 실패 reason=%s", describe_exception(exc), exc_info=True
+            )
             raise AnalysisError(
                 code="STRUCTURE_ANALYSIS_FAILED",
-                message=f"LLM 구조 분석 또는 검증 실패: {type(exc).__name__}",
+                message=f"LLM 구조 분석 또는 검증 실패: {describe_exception(exc)}",
                 retryable=True,
             ) from exc
 

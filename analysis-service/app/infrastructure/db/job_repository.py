@@ -179,6 +179,28 @@ class SqlAlchemyJobRepository:
             )
             return result.rowcount > 0
 
+    def update_progress(
+        self,
+        job_id: uuid.UUID,
+        *,
+        lease_token: uuid.UUID,
+        stage: str,
+        progress_percent: int,
+    ) -> bool:
+        with self._db.transaction_scope() as session:
+            result = session.execute(
+                update(AnalysisJob)
+                .where(AnalysisJob.id == job_id)
+                .where(AnalysisJob.status == "processing")
+                .where(AnalysisJob.lease_token == lease_token)
+                .values(
+                    current_stage=stage,
+                    progress_percent=progress_percent,
+                    updated_at=func.clock_timestamp(),
+                )
+            )
+            return result.rowcount > 0
+
     def complete_job(self, job_id: uuid.UUID, *, lease_token: uuid.UUID) -> bool:
         with self._db.transaction_scope() as session:
             result = session.execute(

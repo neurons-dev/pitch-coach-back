@@ -33,6 +33,7 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _handle_signal)
     signal.signal(signal.SIGINT, _handle_signal)
 
+    logger.info("analysis-worker starting")
     settings = get_settings()
     session_provider = DatabaseSessionProvider(settings=settings, role="worker")
     logger.info(
@@ -42,14 +43,33 @@ def main() -> None:
     )
     session_provider.log_pool_status("worker_startup")
     job_repository = SqlAlchemyJobRepository(session_provider=session_provider)
+
+    # 분석 제공자는 워커에서만 생성한다. 키가 없으면 여기서 기동이 실패하고,
+    # API는 멀쩡한 채 잡만 queued(0%)로 쌓이므로 어느 설정이 빠졌는지 남겨야 한다.
+    try:
+        pronunciation_assessor = create_pronunciation_assessor(settings)
+        feedback_generator = create_feedback_generator(settings)
+        filler_detector = create_filler_detector(settings)
+        structure_analyzer = create_structure_analyzer(settings)
+    except ValueError:
+        logger.exception(
+            "analysis-worker 기동 실패: 분석 제공자를 만들 수 없습니다. "
+            "AZURE_SPEECH_KEY / OPENAI_API_KEY 설정을 확인하세요"
+        )
+        raise
+
+    # 모델 다운로드/로드를 잡 밖에서 끝낸다. 잡 안에서 하면 STT 타임아웃을 잡아먹는다.
+    speech_transcriber = FasterWhisperTranscriber(settings=settings)
+    speech_transcriber.preload()
+
     analysis_use_case = AnalysisUseCase(
         audio_storage=S3AudioStorage(settings=settings),
         audio_normalizer=FfmpegAudioNormalizer(),
-        speech_transcriber=FasterWhisperTranscriber(settings=settings),
-        pronunciation_assessor=create_pronunciation_assessor(settings),
-        feedback_generator=create_feedback_generator(settings),
-        filler_detector=create_filler_detector(settings),
-        structure_analyzer=create_structure_analyzer(settings),
+        speech_transcriber=speech_transcriber,
+        pronunciation_assessor=pronunciation_assessor,
+        feedback_generator=feedback_generator,
+        filler_detector=filler_detector,
+        structure_analyzer=structure_analyzer,
         pipeline_version=settings.pipeline_version,
     )
     dispatcher = Dispatcher(

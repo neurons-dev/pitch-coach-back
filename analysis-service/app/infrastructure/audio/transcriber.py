@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import concurrent.futures
+import logging
 from pathlib import Path
 
 from faster_whisper import WhisperModel
@@ -8,6 +9,13 @@ from faster_whisper import WhisperModel
 from app.core.config import Settings
 from app.domain.audio import Transcript, TranscriptSegment, TranscriptWord
 from app.domain.errors import AnalysisError
+
+logger = logging.getLogger(__name__)
+
+# CPU int8 추론은 실시간보다 느릴 수 있어, 고정 타임아웃이면 긴 오디오는 무조건 걸린다.
+# 발음 평가와 같은 방식으로 오디오 길이에 비례해 예산을 잡는다.
+_TIMEOUT_MULTIPLIER = 3.0
+_MIN_TIMEOUT_BUFFER_SECONDS = 30.0
 
 
 class FasterWhisperTranscriber:
@@ -17,6 +25,17 @@ class FasterWhisperTranscriber:
         self._compute_type = settings.whisper_compute_type
         self._timeout_seconds = settings.stt_timeout_seconds
         self._model: WhisperModel | None = None
+
+    def preload(self) -> None:
+        """모델을 미리 내려받아 메모리에 올린다.
+
+        기본적으로 모델 로드는 첫 전사 요청 안에서 일어나는데, 그 시간이 STT
+        타임아웃 예산에 그대로 포함된다. 캐시가 비어 있으면 수백 MB 다운로드가
+        타임아웃을 밀어내 첫 분석이 통째로 실패한다. 워커 기동 시 미리 끝낸다.
+        """
+        logger.info("whisper 모델 로드 시작 size=%s device=%s", self._model_size, self._device)
+        self._get_model()
+        logger.info("whisper 모델 로드 완료 size=%s", self._model_size)
 
     @property
     def model_version(self) -> str:
@@ -31,11 +50,15 @@ class FasterWhisperTranscriber:
             )
         return self._model
 
-    def transcribe(self, audio_path: Path, *, language: str) -> Transcript:
+    def transcribe(self, audio_path: Path, *, language: str, duration_ms: int) -> Transcript:
+        timeout_seconds = max(
+            self._timeout_seconds,
+            (duration_ms / 1000) * _TIMEOUT_MULTIPLIER + _MIN_TIMEOUT_BUFFER_SECONDS,
+        )
         executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
         future = executor.submit(self._run_transcribe, audio_path, language)
         try:
-            result = future.result(timeout=self._timeout_seconds)
+            result = future.result(timeout=timeout_seconds)
         except concurrent.futures.TimeoutError as exc:
             executor.shutdown(wait=False)
             raise AnalysisError(
