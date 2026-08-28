@@ -48,4 +48,6 @@ class AudioNormalizer(Protocol):
 
 
 class SpeechTranscriber(Protocol):
-    def transcribe(self, audio_path: Path, *, language: str) -> Transcript: ...
+    def transcribe(
+        self, audio_path: Path, *, language: str, duration_ms: int
+    ) -> Transcript: ...

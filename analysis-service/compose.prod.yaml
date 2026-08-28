@@ -19,9 +19,16 @@ services:
       - .env
     environment:
       APP_ENVIRONMENT: production
+      HF_HOME: /models
+    # 볼륨이 없으면 컨테이너를 새로 만들 때마다 whisper 모델을 다시 내려받는다.
+    volumes:
+      - whisper-cache:/models
     restart: unless-stopped
     networks:
       - pitchcoach-net
+
+volumes:
+  whisper-cache:
 
 networks:
   pitchcoach-net:

@@ -107,7 +107,7 @@ class TestOpenAiFeedbackGenerator:
         # then
         assert result.generator == "openai"
         assert result.model == "gpt-4o-mini"
-        assert result.prompt_version == "llm-feedback-v3"
+        assert result.prompt_version == "llm-feedback-v4"
         assert result.coach_comment == "말 속도 점수 90점으로 안정적입니다."
         assert len(result.feedback_items) == 2
         assert result.feedback_items[0].item_type == "summary"
@@ -262,6 +262,186 @@ class TestOpenAiFeedbackGenerator:
 
         # then
         assert exc_info.value.code == "FEEDBACK_GENERATION_FAILED"
+
+    def test_generate_retries_validation_failure_before_giving_up(self):
+        # given: 첫 응답은 근거 검증에 걸리고, 두 번째 응답은 통과한다
+        rejected = self._fake_parsed_completion(
+            coach_comment="말 속도가 안정적이었어요.",
+            items=[
+                {
+                    "item_type": "summary",
+                    "title": "종합 총평",
+                    "description": "말 속도가 안정적이었어요.",  # 점수 숫자가 없어 검증 실패
+                    "metric_code": None,
+                    "evidence": _metric_evidence(),
+                }
+            ],
+        )
+        accepted = self._fake_parsed_completion(
+            coach_comment="말 속도 점수가 90점으로 안정적이었어요.",
+            items=[
+                {
+                    "item_type": "summary",
+                    "title": "종합 총평",
+                    "description": "말 속도 점수가 90점으로 안정적이었어요.",
+                    "metric_code": None,
+                    "evidence": _metric_evidence(),
+                }
+            ],
+        )
+
+        with patch("app.infrastructure.feedback.openai_generator.OpenAI") as mock_openai_cls:
+            mock_client = MagicMock()
+            mock_client.chat.completions.parse.side_effect = [rejected, accepted]
+            mock_openai_cls.return_value = mock_client
+            generator = OpenAiFeedbackGenerator(
+                api_key="sk-test", model="gpt-4o-mini", timeout_seconds=10
+            )
+
+            # when
+            result = generator.generate(
+                transcript_text="안녕하세요", metrics=_metrics(), overall_score=80
+            )
+
+        # then
+        assert result.coach_comment == "말 속도 점수가 90점으로 안정적이었어요."
+        assert mock_client.chat.completions.parse.call_count == 2
+        # 재시도는 직전 위반 사유를 함께 전달해 같은 실수를 반복하지 않게 한다
+        retry_messages = mock_client.chat.completions.parse.call_args_list[1].kwargs["messages"]
+        assert "피드백 설명에 포함되지 않았습니다" in retry_messages[-1]["content"]
+
+    def test_generate_marks_validation_failure_as_non_retryable(self):
+        # given: 매번 근거 검증에 걸리는 응답
+        completion = self._fake_parsed_completion(
+            coach_comment="말 속도가 안정적이었어요.",
+            items=[
+                {
+                    "item_type": "summary",
+                    "title": "종합 총평",
+                    "description": "말 속도가 안정적이었어요.",
+                    "metric_code": None,
+                    "evidence": _metric_evidence(),
+                }
+            ],
+        )
+
+        with patch("app.infrastructure.feedback.openai_generator.OpenAI") as mock_openai_cls:
+            mock_client = MagicMock()
+            mock_client.chat.completions.parse.return_value = completion
+            mock_openai_cls.return_value = mock_client
+            generator = OpenAiFeedbackGenerator(
+                api_key="sk-test", model="gpt-4o-mini", timeout_seconds=10
+            )
+
+            # when
+            with pytest.raises(AnalysisError) as exc_info:
+                generator.generate(
+                    transcript_text="안녕하세요", metrics=_metrics(), overall_score=80
+                )
+
+        # then: 파이프라인 전체를 다시 돌리지 않고, 실패 원인이 메시지에 남는다
+        assert exc_info.value.retryable is False
+        assert "피드백 설명에 포함되지 않았습니다" in exc_info.value.message
+
+    def test_generate_accepts_rounded_raw_value(self):
+        # given: 320.0을 320으로 반올림해 인용한 근거
+        completion = self._fake_parsed_completion(
+            coach_comment="말 속도 점수가 90점으로 안정적이었어요.",
+            items=[
+                {
+                    "item_type": "summary",
+                    "title": "종합 총평",
+                    "description": "말 속도 점수가 90점으로 안정적이었어요.",
+                    "metric_code": None,
+                    "evidence": _metric_evidence(metric_raw_value=320.0),
+                }
+            ],
+        )
+
+        with patch("app.infrastructure.feedback.openai_generator.OpenAI") as mock_openai_cls:
+            mock_client = MagicMock()
+            mock_client.chat.completions.parse.return_value = completion
+            mock_openai_cls.return_value = mock_client
+            generator = OpenAiFeedbackGenerator(
+                api_key="sk-test", model="gpt-4o-mini", timeout_seconds=10
+            )
+
+            # when
+            result = generator.generate(
+                transcript_text="안녕하세요", metrics=_metrics(), overall_score=80
+            )
+
+        # then
+        assert result.feedback_items[0].evidence["metricRawValue"] == 320.0
+
+    def test_generate_rejects_transcript_quote_as_summary_evidence(self):
+        # given: 종합 총평을 발화 인용으로만 채운 응답 (코치 한마디가 에코가 되는 경우)
+        spoken = "안녕하세요 오늘은 발표를 시작하겠습니다"
+        completion = self._fake_parsed_completion(
+            coach_comment=spoken,
+            items=[
+                {
+                    "item_type": "summary",
+                    "title": "종합 총평",
+                    "description": spoken,
+                    "metric_code": None,
+                    "evidence": _transcript_evidence(spoken),
+                }
+            ],
+        )
+
+        with patch("app.infrastructure.feedback.openai_generator.OpenAI") as mock_openai_cls:
+            mock_client = MagicMock()
+            mock_client.chat.completions.parse.return_value = completion
+            mock_openai_cls.return_value = mock_client
+            generator = OpenAiFeedbackGenerator(
+                api_key="sk-test", model="gpt-4o-mini", timeout_seconds=10
+            )
+
+            # when
+            with pytest.raises(AnalysisError) as exc_info:
+                generator.generate(transcript_text=spoken, metrics=_metrics(), overall_score=80)
+
+        # then
+        assert "종합 총평은 transcript 인용이 아니라" in exc_info.value.message
+
+    def test_generate_rejects_description_that_is_mostly_quote(self):
+        # given: 인용이 설명의 대부분을 차지해 코치 코멘트가 없는 항목
+        spoken = "안녕하세요 오늘은 발표를 시작하겠습니다"
+        completion = self._fake_parsed_completion(
+            coach_comment="말 속도 점수가 90점으로 안정적이었어요.",
+            items=[
+                {
+                    "item_type": "summary",
+                    "title": "종합 총평",
+                    "description": "말 속도 점수가 90점으로 안정적이었어요.",
+                    "metric_code": None,
+                    "evidence": _metric_evidence(),
+                },
+                {
+                    "item_type": "strength",
+                    "title": "도입부",
+                    "description": f"{spoken} 좋아요",
+                    "metric_code": "STRUCTURE",
+                    "evidence": _transcript_evidence(spoken),
+                },
+            ],
+        )
+
+        with patch("app.infrastructure.feedback.openai_generator.OpenAI") as mock_openai_cls:
+            mock_client = MagicMock()
+            mock_client.chat.completions.parse.return_value = completion
+            mock_openai_cls.return_value = mock_client
+            generator = OpenAiFeedbackGenerator(
+                api_key="sk-test", model="gpt-4o-mini", timeout_seconds=10
+            )
+
+            # when
+            with pytest.raises(AnalysisError) as exc_info:
+                generator.generate(transcript_text=spoken, metrics=_metrics(), overall_score=80)
+
+        # then
+        assert "인용 문구에 비해 덧붙인 코멘트가 없습니다" in exc_info.value.message
 
     def test_generate_rejects_quote_not_found_in_transcript(self):
         # given

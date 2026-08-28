@@ -28,7 +28,12 @@ services:
     command: ["python", "-m", "app.worker_main"]
     env_file:
       - .env
+    environment:
+      HF_HOME: /models
+    volumes:
+      - whisper-cache:/models
     restart: unless-stopped
 
 volumes:
   pgdata:
+  whisper-cache:

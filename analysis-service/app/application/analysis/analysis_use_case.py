@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import logging
+from collections.abc import Callable
+
 from app.domain.audio import AudioNormalizer, AudioStorage, SpeechTranscriber
 from app.domain.entities import (
     AnalysisResultInput,
@@ -19,7 +22,18 @@ from app.domain.metrics import (
 from app.domain.pronunciation import PronunciationAssessor
 from app.domain.structure_analyzer import StructureAnalyzer
 
+logger = logging.getLogger(__name__)
+
 _DEFAULT_LANGUAGE = "ko-KR"
+
+ProgressReporter = Callable[[str, int], None]
+
+# 분석은 한 잡 안에서 수 분이 걸리므로 단계마다 진행률을 올려 준다.
+# 진행률이 20%에 멈춰 있으면 호출자가 정상 진행과 멈춤을 구분할 수 없다.
+_STAGE_TRANSCRIBING = ("TRANSCRIBING", 35)
+_STAGE_ASSESSING_PRONUNCIATION = ("ASSESSING_PRONUNCIATION", 50)
+_STAGE_ANALYZING_CONTENT = ("ANALYZING_CONTENT", 65)
+_STAGE_GENERATING_FEEDBACK = ("GENERATING_FEEDBACK", 85)
 
 
 class AnalysisUseCase:
@@ -54,15 +68,21 @@ class AnalysisUseCase:
         presentation_title: str | None = None,
         practice_type_code: str | None = None,
         target_duration_sec: int | None = None,
+        progress_reporter: ProgressReporter | None = None,
     ) -> AnalysisResultInput:
         downloaded = self._audio_storage.download(audio_object_key)
+        source_duration_ms = downloaded.duration_ms
         try:
             normalized_path = self._audio_normalizer.normalize(downloaded.path)
         finally:
             downloaded.path.unlink(missing_ok=True)
 
+        self._report(progress_reporter, _STAGE_TRANSCRIBING)
+
         try:
-            transcript = self._speech_transcriber.transcribe(normalized_path, language=self._language)
+            transcript = self._speech_transcriber.transcribe(
+                normalized_path, language=self._language, duration_ms=source_duration_ms
+            )
             calc_input = MetricCalculationInput(
                 text=transcript.text,
                 duration_ms=transcript.duration_ms,
@@ -85,6 +105,7 @@ class AnalysisUseCase:
                     for segment in transcript.segments
                 ],
             )
+            self._report(progress_reporter, _STAGE_ASSESSING_PRONUNCIATION)
             assessment = self._pronunciation_assessor.assess(
                 audio_path=normalized_path, calc_input=calc_input, language=self._language
             )
@@ -109,6 +130,7 @@ class AnalysisUseCase:
                 details=pronunciation_details,
             )
 
+        self._report(progress_reporter, _STAGE_ANALYZING_CONTENT)
         filler_detection = self._filler_detector.detect(calc_input)
         structure_result = self._structure_analyzer.analyze(
             calc_input,
@@ -124,6 +146,7 @@ class AnalysisUseCase:
         )
         overall_score = calc_overall_score(metrics)
         total_speech_ms, total_silence_ms = calc_speech_silence_ms(calc_input)
+        self._report(progress_reporter, _STAGE_GENERATING_FEEDBACK)
         feedback_result = self._feedback_generator.generate(
             transcript_text=transcript.text,
             metrics=metrics,
@@ -161,3 +184,13 @@ class AnalysisUseCase:
             metric_scores=metrics,
             feedback_items=feedback_result.feedback_items,
         )
+
+    @staticmethod
+    def _report(reporter: ProgressReporter | None, stage: tuple[str, int]) -> None:
+        # 진행률 보고는 부가 정보이므로 실패해도 분석 자체를 중단시키지 않는다.
+        if reporter is None:
+            return
+        try:
+            reporter(*stage)
+        except Exception:
+            logger.warning("진행률 보고 실패 stage=%s", stage[0], exc_info=True)
