@@ -71,6 +71,33 @@ def _pronunciation_result(*, pronunciation: float, fluency: float, accuracy: flo
     )
 
 
+
+class _UnassessedPronunciationResult:
+    """평가 JSON이 없을 때의 실제 SDK 객체를 흉내낸다.
+
+    Azure SDK는 응답에 PronunciationAssessment 블록이 없으면 점수 속성을 세팅하지
+    않으므로, 점수 프로퍼티 접근이 AttributeError(_pronunciation_score 없음)를 낸다.
+    """
+
+    @property
+    def pronunciation_score(self) -> float:
+        raise AttributeError(
+            "'PronunciationAssessmentResult' object has no attribute '_pronunciation_score'"
+        )
+
+    @property
+    def fluency_score(self) -> float:
+        raise AttributeError(
+            "'PronunciationAssessmentResult' object has no attribute '_fluency_score'"
+        )
+
+    @property
+    def accuracy_score(self) -> float:
+        raise AttributeError(
+            "'PronunciationAssessmentResult' object has no attribute '_accuracy_score'"
+        )
+
+
 def _patch_speechsdk():
     return patch("app.infrastructure.pronunciation.azure_speech_sdk.speechsdk")
 
@@ -205,6 +232,85 @@ class TestAzureSpeechSdkPronunciationAssessor:
         # then
         assert exc_info.value.code == "PRONUNCIATION_PROVIDER_FAILED"
         assert exc_info.value.retryable is False
+
+    def test_assess_skips_segments_without_pronunciation_assessment(self, tmp_path: Path):
+        # given: 평가 결과가 붙지 않은 세그먼트가 섞여 들어온다
+        audio_path = tmp_path / "a.wav"
+        audio_path.write_bytes(b"fake")
+        events = [
+            ("recognized", _recognized_result_event(duration=10_000_000)),
+            ("recognized", _recognized_result_event(duration=30_000_000)),
+            ("session_stopped", SimpleNamespace()),
+        ]
+        fake_recognizer = _FakeRecognizer(events=events)
+        pron_results = [
+            _UnassessedPronunciationResult(),
+            _pronunciation_result(pronunciation=60, fluency=50, accuracy=65),
+        ]
+
+        with _patch_speechsdk() as mock_speechsdk:
+            mock_speechsdk.SpeechRecognizer.return_value = fake_recognizer
+            mock_speechsdk.PronunciationAssessmentResult.side_effect = pron_results
+            mock_speechsdk.ResultReason.RecognizedSpeech = "RECOGNIZED"
+            mock_speechsdk.CancellationReason.Error = "ERROR"
+
+            # when
+            result = self._assessor().assess(
+                audio_path=audio_path, calc_input=_calc_input(), language="ko-KR"
+            )
+
+        # then: 평가된 세그먼트만으로 집계하고, 제외 건수를 남긴다
+        assert result.pronunciation_score == 60
+        assert result.fluency_score == 50
+        assert result.accuracy_score == 65
+        assert result.raw_response == {"segmentCount": 1, "skippedSegmentCount": 1}
+
+    def test_assess_fails_cleanly_when_no_segment_has_pronunciation_assessment(
+        self, tmp_path: Path
+    ):
+        # given: 인식은 됐지만 어떤 세그먼트에도 평가 결과가 없다
+        audio_path = tmp_path / "a.wav"
+        audio_path.write_bytes(b"fake")
+        events = [
+            ("recognized", _recognized_result_event(duration=10_000_000)),
+            ("session_stopped", SimpleNamespace()),
+        ]
+        fake_recognizer = _FakeRecognizer(events=events)
+
+        with _patch_speechsdk() as mock_speechsdk:
+            mock_speechsdk.SpeechRecognizer.return_value = fake_recognizer
+            mock_speechsdk.PronunciationAssessmentResult.return_value = (
+                _UnassessedPronunciationResult()
+            )
+            mock_speechsdk.ResultReason.RecognizedSpeech = "RECOGNIZED"
+            mock_speechsdk.CancellationReason.Error = "ERROR"
+
+            # when / then: AttributeError가 새어 나가지 않고 도메인 오류로 바뀐다
+            with pytest.raises(AnalysisError) as exc_info:
+                self._assessor().assess(
+                    audio_path=audio_path, calc_input=_calc_input(), language="ko-KR"
+                )
+
+        assert exc_info.value.code == "PRONUNCIATION_PROVIDER_FAILED"
+        assert exc_info.value.retryable is False
+        assert "_pronunciation_score" not in exc_info.value.message
+
+    def test_assess_wraps_unexpected_sdk_error_into_analysis_error(self, tmp_path: Path):
+        # given
+        audio_path = tmp_path / "a.wav"
+        audio_path.write_bytes(b"fake")
+
+        with _patch_speechsdk() as mock_speechsdk:
+            mock_speechsdk.SpeechRecognizer.side_effect = RuntimeError("sdk exploded")
+
+            # when / then
+            with pytest.raises(AnalysisError) as exc_info:
+                self._assessor().assess(
+                    audio_path=audio_path, calc_input=_calc_input(), language="ko-KR"
+                )
+
+        assert exc_info.value.code == "PRONUNCIATION_PROVIDER_FAILED"
+        assert "sdk exploded" not in exc_info.value.message
 
     def test_assess_scales_timeout_with_audio_duration(self, tmp_path: Path):
         # given

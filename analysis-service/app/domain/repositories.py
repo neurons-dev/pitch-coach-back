@@ -30,6 +30,15 @@ class JobRepository(Protocol):
         self, job_id: uuid.UUID, *, lease_token: uuid.UUID, lease_duration_seconds: int
     ) -> bool: ...
 
+    def update_progress(
+        self,
+        job_id: uuid.UUID,
+        *,
+        lease_token: uuid.UUID,
+        stage: str,
+        progress_percent: int,
+    ) -> bool: ...
+
     def complete_job(self, job_id: uuid.UUID, *, lease_token: uuid.UUID) -> bool: ...
 
     def save_result_and_complete(

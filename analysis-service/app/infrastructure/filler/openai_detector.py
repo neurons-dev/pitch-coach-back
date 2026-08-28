@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import logging
+
 from openai import OpenAI, OpenAIError
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.domain.entities import MetricCalculationInput
-from app.domain.errors import AnalysisError
+from app.domain.errors import AnalysisError, describe_exception
 from app.domain.filler import (
     FillerCandidate,
     FillerOccurrence,
@@ -12,6 +14,8 @@ from app.domain.filler import (
     occurrence_from_candidate,
 )
 from app.domain.filler_detector import FillerDetectionResult
+
+logger = logging.getLogger(__name__)
 
 _PROMPT_VERSION = "llm-filler-v7"
 
@@ -122,9 +126,10 @@ class OpenAiFillerDetector:
                     raise ValueError(f"중복된 후보 index가 반환되었습니다: {finding.index}")
                 findings[finding.index] = finding
         except (OpenAIError, ValidationError, ValueError, IndexError) as exc:
+            logger.warning("LLM 필러 판단 실패 reason=%s", describe_exception(exc), exc_info=True)
             raise AnalysisError(
                 code="FILLER_DETECTION_FAILED",
-                message=f"LLM 필러 판단 실패: {type(exc).__name__}",
+                message=f"LLM 필러 판단 실패: {describe_exception(exc)}",
                 retryable=True,
             ) from exc
 
