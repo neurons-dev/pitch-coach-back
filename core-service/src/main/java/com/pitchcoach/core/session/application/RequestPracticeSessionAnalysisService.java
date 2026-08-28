@@ -35,6 +35,8 @@ public class RequestPracticeSessionAnalysisService {
         AnalysisJobCreateRequest request = new AnalysisJobCreateRequest(
                 session.getId(),
                 session.getUser().getId(),
+                session.getTitle(),
+                session.getPracticeType().getCode(),
                 session.getAudioObjectKey(),
                 session.getAudioContentType(),
                 session.getAudioSizeBytes(),
