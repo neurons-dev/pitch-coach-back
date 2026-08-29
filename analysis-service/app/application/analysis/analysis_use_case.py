@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 
 from app.domain.audio import AudioNormalizer, AudioStorage, SpeechTranscriber
 from app.domain.entities import (
@@ -106,9 +107,26 @@ class AnalysisUseCase:
                 ],
             )
             self._report(progress_reporter, _STAGE_ASSESSING_PRONUNCIATION)
-            assessment = self._pronunciation_assessor.assess(
-                audio_path=normalized_path, calc_input=calc_input, language=self._language
-            )
+            self._report(progress_reporter, _STAGE_ANALYZING_CONTENT)
+            # 발음 평가/필러 탐지/구조 분석은 전사문만 있으면 되고 서로의 결과에
+            # 의존하지 않으므로 동시에 실행해 지연 시간을 합이 아닌 최댓값으로 줄인다.
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                pronunciation_future = executor.submit(
+                    self._pronunciation_assessor.assess,
+                    audio_path=normalized_path,
+                    calc_input=calc_input,
+                    language=self._language,
+                )
+                filler_future = executor.submit(self._filler_detector.detect, calc_input)
+                structure_future = executor.submit(
+                    self._structure_analyzer.analyze,
+                    calc_input,
+                    practice_type_code=practice_type_code,
+                    target_duration_sec=target_duration_sec,
+                )
+                assessment = pronunciation_future.result()
+                filler_detection = filler_future.result()
+                structure_result = structure_future.result()
         finally:
             normalized_path.unlink(missing_ok=True)
 
@@ -130,13 +148,6 @@ class AnalysisUseCase:
                 details=pronunciation_details,
             )
 
-        self._report(progress_reporter, _STAGE_ANALYZING_CONTENT)
-        filler_detection = self._filler_detector.detect(calc_input)
-        structure_result = self._structure_analyzer.analyze(
-            calc_input,
-            practice_type_code=practice_type_code,
-            target_duration_sec=target_duration_sec,
-        )
         metrics = calc_all_metrics(
             calc_input,
             pronunciation_metric,
