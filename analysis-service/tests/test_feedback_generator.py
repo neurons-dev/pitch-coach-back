@@ -68,6 +68,15 @@ class TestOpenAiFeedbackGenerator:
         completion.choices = [MagicMock(message=MagicMock(parsed=parsed))]
         return completion
 
+    def _real_validation_error(self) -> ValidationError:
+        # OpenAI SDK의 parse()는 response_format 스키마 위반 시 이 예외를 호출 자체에서
+        # 던진다 (실제 운영에서 관측된 실패 모드) — model_validate로 진짜 인스턴스를 만든다.
+        try:
+            _FeedbackResponseSchema.model_validate({"coach_comment": "", "feedback_items": []})
+        except ValidationError as exc:
+            return exc
+        raise AssertionError("expected ValidationError")
+
     def test_generate_maps_parsed_response_to_feedback_result(self):
         # given
         completion = self._fake_parsed_completion(
@@ -309,6 +318,42 @@ class TestOpenAiFeedbackGenerator:
         # 재시도는 직전 위반 사유를 함께 전달해 같은 실수를 반복하지 않게 한다
         retry_messages = mock_client.chat.completions.parse.call_args_list[1].kwargs["messages"]
         assert "피드백 설명에 포함되지 않았습니다" in retry_messages[-1]["content"]
+
+    def test_generate_retries_when_parse_call_itself_raises_validation_error(self):
+        # given: parse() 호출 자체가 스키마 위반으로 ValidationError를 던지는 경우
+        # (근거 검증(ValueError)이 아니라 client.parse() 내부에서 발생하는 실제 실패 모드)
+        accepted = self._fake_parsed_completion(
+            coach_comment="말 속도 점수가 90점으로 안정적이었어요.",
+            items=[
+                {
+                    "item_type": "summary",
+                    "title": "종합 총평",
+                    "description": "말 속도 점수가 90점으로 안정적이었어요.",
+                    "metric_code": None,
+                    "evidence": _metric_evidence(),
+                }
+            ],
+        )
+
+        with patch("app.infrastructure.feedback.openai_generator.OpenAI") as mock_openai_cls:
+            mock_client = MagicMock()
+            mock_client.chat.completions.parse.side_effect = [
+                self._real_validation_error(),
+                accepted,
+            ]
+            mock_openai_cls.return_value = mock_client
+            generator = OpenAiFeedbackGenerator(
+                api_key="sk-test", model="gpt-4o-mini", timeout_seconds=10
+            )
+
+            # when
+            result = generator.generate(
+                transcript_text="안녕하세요", metrics=_metrics(), overall_score=80
+            )
+
+        # then: job 단위로 실패 처리되지 않고, 같은 호출 안에서 재시도로 회복한다
+        assert result.coach_comment == "말 속도 점수가 90점으로 안정적이었어요."
+        assert mock_client.chat.completions.parse.call_count == 2
 
     def test_generate_marks_validation_failure_as_non_retryable(self):
         # given: 매번 근거 검증에 걸리는 응답

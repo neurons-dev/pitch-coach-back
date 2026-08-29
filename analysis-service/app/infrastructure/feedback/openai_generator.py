@@ -7,7 +7,7 @@ import re
 from typing import Literal
 
 from openai import OpenAI
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 
 from app.domain.entities import FeedbackGenerationResult, FeedbackItemInput, MetricScoreInput
 from app.domain.errors import AnalysisError, describe_exception
@@ -306,16 +306,6 @@ class OpenAiFeedbackGenerator:
                     messages=messages,
                     response_format=_FeedbackResponseSchema,
                 )
-            except Exception as exc:
-                # 호출 자체가 실패한 경우는 일시적 장애일 수 있으므로 잡 단위 재시도에 맡긴다.
-                logger.warning("LLM 피드백 호출 실패 attempt=%s", attempt, exc_info=True)
-                raise AnalysisError(
-                    code="FEEDBACK_GENERATION_FAILED",
-                    message=f"LLM 피드백 호출 실패: {type(exc).__name__}",
-                    retryable=True,
-                ) from exc
-
-            try:
                 parsed = completion.choices[0].message.parsed
                 if parsed is None:
                     raise ValueError("OpenAI 응답에 파싱된 결과가 없습니다")
@@ -325,7 +315,10 @@ class OpenAiFeedbackGenerator:
                     metrics=metrics,
                 )
                 return parsed
-            except Exception as exc:
+            except (ValidationError, ValueError) as exc:
+                # response_format 스키마 위반은 OpenAI SDK가 parse() 호출 안에서 직접
+                # ValidationError를 던지므로, 근거 검증 실패(ValueError)와 같은 경로로
+                # 묶어서 자기 교정 재시도 루프를 태운다.
                 last_error = exc
                 logger.warning(
                     "LLM 피드백 검증 실패 attempt=%s/%s reason=%s",
@@ -334,6 +327,15 @@ class OpenAiFeedbackGenerator:
                     describe_exception(exc),
                     exc_info=True,
                 )
+            except Exception as exc:
+                # 호출 자체가 실패한 경우(네트워크, 레이트리밋 등)는 일시적 장애일 수 있으므로
+                # 잡 단위 재시도에 맡긴다.
+                logger.warning("LLM 피드백 호출 실패 attempt=%s", attempt, exc_info=True)
+                raise AnalysisError(
+                    code="FEEDBACK_GENERATION_FAILED",
+                    message=f"LLM 피드백 호출 실패: {type(exc).__name__}",
+                    retryable=True,
+                ) from exc
 
         # 검증 실패는 파이프라인을 처음부터 다시 돌려도 같은 이유로 깨질 가능성이 높다.
         # 사용자를 몇 분 더 기다리게 하는 대신 여기서 확정 실패로 끊는다.
